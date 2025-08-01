@@ -5,36 +5,60 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Starlink Constellation Simulator - Real-time 3D visualization of 8,000+ Starlink satellites by Ruddro Roy.">
     <title>Starlink Constellation Simulator - Ruddro Roy</title>
-    <link rel="icon" href="/favicon.ico" type="image/x-icon">  <!-- Absolute path; upload star-themed ICO to root for override -->
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
     <script>
-        // Clean .html redirect (client-side; server rewrites preferred for prod)
         if (window.location.pathname.includes('.html')) {
             window.location.replace(window.location.pathname.replace('.html', ''));
         }
     </script>
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'JetBrains Mono', monospace; color: #fff; }
+        body { margin: 0; overflow: hidden; font-family: 'JetBrains Mono', monospace; color: #00ff00; background: #000; }  /* Terminal green on black */
         #renderer { width: 100vw; height: 100vh; }
-        #info { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 12px; border-radius: 8px; font-size: 14px; width: 300px; }
-        #detail-panel { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); padding: 15px; border-radius: 8px; width: 350px; display: none; }
-        #detail-panel h3 { margin: 0 0 10px; color: #00ff88; }
+        #constellation-stats { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 10px; border: 1px solid #00ff00; border-radius: 4px; font-size: 12px; width: 220px; }
+        #controls-panel { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); padding: 10px; border: 1px solid #00ff00; border-radius: 4px; font-size: 12px; width: 180px; }
+        #system-status { position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 10px; border: 1px solid #00ff00; border-radius: 4px; font-size: 12px; width: 220px; }
+        #detail-panel { position: absolute; top: 150px; left: 10px; background: rgba(0,0,0,0.7); padding: 15px; border: 1px solid #00ff00; border-radius: 4px; width: 300px; display: none; }
+        #detail-panel h3 { margin: 0 0 10px; color: #00ff00; }
         #detail-panel p { margin: 5px 0; font-size: 12px; }
-        #alert { position: absolute; top: 60px; left: 10px; color: red; background: rgba(255,0,0,0.4); padding: 8px; border-radius: 8px; display: none; }
-        #back { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0, 255, 136, 0.1); border: 1px solid #00ff88; color: #00ff88; padding: 10px 20px; border-radius: 8px; text-decoration: none; transition: all 0.3s; z-index: 1; }
-        #back:hover { background: #00ff88; color: #000; }
-        #controls { position: absolute; bottom: 60px; left: 10px; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 8px; }
-        #controls button { background: #00ff88; color: #000; border: none; padding: 8px 12px; margin: 5px; cursor: pointer; border-radius: 4px; }
+        #alert { position: absolute; top: 300px; left: 10px; color: red; background: rgba(255,0,0,0.4); padding: 8px; border-radius: 4px; display: none; }
+        #back { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0, 255, 0, 0.1); border: 1px solid #00ff00; color: #00ff00; padding: 10px 20px; border-radius: 4px; text-decoration: none; transition: all 0.3s; z-index: 1; }
+        #back:hover { background: #00ff00; color: #000; }
+        #toggle-buttons { position: absolute; bottom: 60px; left: 240px; background: rgba(0,0,0,0.7); padding: 10px; border: 1px solid #00ff00; border-radius: 4px; }
+        #toggle-buttons button { background: #00ff00; color: #000; border: none; padding: 6px 10px; margin: 3px; cursor: pointer; border-radius: 4px; font-size: 12px; }
     </style>
 </head>
 <body>
     <div id="renderer"></div>
-    <div id="info">Starlink Sats: 0 | Avg Vel: 0 km/s | Avg Alt: 0 km | Click sat for details</div>
+    <div id="constellation-stats">
+        STARLINK CONSTELLATION<br>
+        Total Satellites: <span id="total-sats">0</span><br>
+        Orbital Shells: <span id="shells">0</span><br>
+        Average Altitude: <span id="avg-alt">0 km</span><br>
+        Orbital Period: <span id="avg-period">0 min</span><br>
+        Velocity: <span id="avg-vel">0 km/s</span><br>
+        Last Update: <span id="last-update">00:00:00</span>
+    </div>
+    <div id="controls-panel">
+        CONTROLS<br>
+        Mouse: Rotate View<br>
+        Scroll: Zoom In/Out<br>
+        Auto-Rotate: <span id="auto-rotate-status">Enabled</span><br>
+        Update Rate: <span id="update-rate">5 seconds</span>
+    </div>
+    <div id="system-status">
+        SYSTEM STATUS<br>
+        FPS: <span id="fps">0</span><br>
+        Rendered Objects: <span id="rendered-objs">0</span><br>
+        Memory Usage: <span id="memory">Calculating...</span><br>
+        Connection: <span id="connection">Connected</span>
+    </div>
     <div id="detail-panel">
         <h3>Satellite Details</h3>
         <p id="sat-name"></p>
         <p id="sat-loc"></p>
         <p id="sat-vel"></p>
         <p id="sat-alt"></p>
+        <p id="sat-period"></p>
         <p id="sat-inc"></p>
         <p id="sat-ecc"></p>
         <p id="sat-sma"></p>
@@ -42,11 +66,12 @@
         <p id="sat-argp"></p>
         <p id="sat-ma"></p>
     </div>
-    <div id="alert">Collision Risk Alert: Proximity < 100 km detected</div>
-    <div id="controls">
+    <div id="alert">Collision Risk Alert: Proximity < 100 km</div>
+    <div id="toggle-buttons">
         <button id="toggle-trails">Toggle Trails</button>
         <button id="toggle-orbits">Toggle Orbits</button>
-        <button id="toggle-links">Toggle Laser Links</button>
+        <button id="toggle-links">Toggle Links</button>
+        <button id="toggle-auto-rotate">Toggle Auto-Rotate</button>
     </div>
     <a id="back" href="/">← Back to Portfolio</a>
 
@@ -54,29 +79,27 @@
     <script src="https://threejs.org/build/three.js"></script>
     <script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
     <script>
-        // Constants rooted in physics: WGS84 Earth (km), G*M = 3.986004418e5 km^3/s^2 (mu for orbital v = sqrt(mu/a))
         const EARTH_RADIUS = 6371;
-        const MU = 398600.4418;  // km^3/s^2, for derivations like period T = 2π sqrt(a^3/mu)
-        const SCALE = 0.0001;  // km to Three.js units (avoids precision loss in matrices: pos scaled to ~0.6 units for Earth)
+        const MU = 398600.4418;  // km^3/s^2
+        const SCALE = 0.0001;
         const TLE_URL = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle';
-        const COLLISION_THRESHOLD = 100;  // km; real risk P = n σ v Δt / V, here simple pairwise dist sqrt(Δx^2 + Δy^2 + Δz^2) < thresh
-        const TRAIL_LENGTH = 20;  // Positions/trail; balance perf (O(N) verts) vs viz (shows ~2 min arc at v=7.6 km/s)
-        const ORBIT_STEPS = 360;  // Points/orbit ellipse; ν from 0 to 2π, r(ν) = a(1-e^2)/(1+e cos ν)
-        const LINK_THRESHOLD = 1000;  // km for inter-sat laser links (approx Starlink range; connect if ||r_i - r_j|| < thresh)
+        const COLLISION_THRESHOLD = 100;
+        const TRAIL_LENGTH = 20;
+        const ORBIT_STEPS = 360;
+        const LINK_THRESHOLD = 1000;
+        const SHELL_ALT_BINS = [300, 400, 500, 600, 700];  // km bins for shells (group by h, math: hist count non-zero)
+        const UPDATE_INTERVAL = 5000;  // ms
 
-        // Scene: GPU-accelerated WebGL, perspective fov=75° for immersion
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.getElementById('renderer').appendChild(renderer.domElement);
 
-        // Controls: Quaternion-based orbiting (damping k=0.05 like friction b in m \dot{v} = -b v)
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
 
-        // Earth: High-res textured sphere (Phong shader: diffuse + specular = k_d I · N·L + k_s (R·V)^n, n=shininess=10 for glossy oceans)
         const loader = new THREE.TextureLoader();
         const earth = new THREE.Mesh(
             new THREE.SphereGeometry(EARTH_RADIUS * SCALE, 64, 64),
@@ -88,20 +111,17 @@
         );
         scene.add(earth);
 
-        // Lighting: Ambient (global illum I_a) + point sun (inverse square falloff, pos approx ecliptic)
         scene.add(new THREE.AmbientLight(0x404040));
         const sunLight = new THREE.PointLight(0xffffff, 1.5);
         sunLight.position.set(10000 * SCALE, 0, 0);
         scene.add(sunLight);
 
-        // Sats: Instanced spheres (green dots; instance matrix M_i = translate(r_i * SCALE), efficient for N=8000+)
         const satGeometry = new THREE.SphereGeometry(5 * SCALE, 8, 8);
         const satMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
         const satsInstanced = new THREE.InstancedMesh(satGeometry, satMaterial, 10000);
         scene.add(satsInstanced);
-        const dummy = new THREE.Object3D();  // Helper for setMatrixAt
+        const dummy = new THREE.Object3D();
 
-        // Trails: Per-sat lines tracing history (yellow; buffer attrib pos updated shift-style, like FIFO queue)
         const trailMaterial = new THREE.LineBasicMaterial({ color: 0xffff00 });
         const trails = [];
         for (let i = 0; i < 10000; i++) {
@@ -114,7 +134,6 @@
         }
         let showTrails = true;
 
-        // Orbits: Predicted full ellipse lines (blue; Kepler params from satrec, r(ν) in ECI then to ECEF)
         const orbitMaterial = new THREE.LineBasicMaterial({ color: 0x0000ff });
         const orbits = [];
         for (let i = 0; i < 10000; i++) {
@@ -127,26 +146,30 @@
         }
         let showOrbits = false;
 
-        // Links: Inter-sat lines for network (red; connect i-j if dist < thresh, O(N^2/2) naive but subsample for perf)
         const linkMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
         const linksGroup = new THREE.Group();
         scene.add(linksGroup);
         let showLinks = false;
 
-        // Interaction: Raycaster (proj mouse to ray, intersect instances)
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
-        let satData = [];  // [{id, x,y,z, vel, alt, lat, lon, satrec}, ...]
-        let prevPositions = [];  // For trails/delta
-        let selectedSat = null;  // For click details
+        let satData = [];
+        let prevPositions = [];
+        let selectedSat = null;
 
         camera.position.z = EARTH_RADIUS * SCALE * 1.5;
 
         let tleCache = [];
         let lastFetch = 0;
+        let autoRotate = true;
+        let autoRotateSpeed = 0.05;  // deg/frame ~ slow Earth sidereal ω=0.004167°/s * 60fps = 0.25°/frame, scaled down
+        let clock = new THREE.Clock();  // For FPS Δt
+        let fps = 0;
+        let frameCount = 0;
+        let lastFpsTime = 0;
 
         async function fetchStarlinkTLE() {
-            if (Date.now() - lastFetch < 1800000) return tleCache;  // 30min cache (TLE valid ~days, but refresh for drag updates)
+            if (Date.now() - lastFetch < 1800000) return tleCache;
             const res = await fetch(TLE_URL);
             const text = await res.text();
             tleCache = text.trim().split('\n').reduce((acc, line, i) => {
@@ -155,45 +178,40 @@
                 return acc;
             }, []).filter(group => group.length === 3);
             lastFetch = Date.now();
-            console.log(`Fetched ${tleCache.length} Starlink TLEs (names like STARLINK-XXXX included)`);
+            document.getElementById('connection').textContent = 'Connected';
             return tleCache;
         }
 
-        // Core update: Propagate positions via SGP4 (solves r̈ = -mu r/r^3 + J2 (3/2 mu R_e^2 / r^5 (3 sin^2 φ -1) z-hat) + drag B* rho v^2 /2 hat(-v))
-        // Step-by-step: Parse TLE to mean elements (a, e, i, Ω=RAAN, ω=argp, M=mean anomaly)
-        // Secular: ΔM = n t + (3/2 n J2 (R_e/p)^2 (3 cos^2 i -1)/2) t (J2 precession)
-        // Periodic: Short-period from Brouwer theory, long if resonant
-        // Output: ECI pos/vel, rotate to ECEF by R_z(-θ_gmst), θ=280.46 + 360.9856235 d (d from J2000)
         async function updatePositions() {
             const tles = await fetchStarlinkTLE();
             const now = new Date();
             let totalVel = 0;
             let totalAlt = 0;
+            let totalPeriod = 0;
             let validCount = 0;
             let highRisk = false;
+            let altHistogram = Array(SHELL_ALT_BINS.length).fill(0);  // Bin counts for shells
             satData = [];
             prevPositions = prevPositions.length ? prevPositions : Array(tles.length).fill({x:0,y:0,z:0});
-            linksGroup.clear();  // Reset links
+            linksGroup.clear();
             tles.forEach((tle, i) => {
-                const satrec = satellite.twoline2satrec(tle[1], tle[2]);  // Parses to {no: mean motion n=sqrt(mu/a^3) rad/min, inclo: i rad, ecco: e, ...}
+                const satrec = satellite.twoline2satrec(tle[1], tle[2]);
                 const posVel = satellite.propagate(satrec, now);
                 if (!posVel.position) return;
                 const gmst = satellite.gstime(now);
-                const eci = posVel.position;  // ECI (km)
-                const ecf = satellite.eciToEcf(eci, gmst);  // ECEF
-                const vel = Math.sqrt(posVel.velocity.x**2 + posVel.velocity.y**2 + posVel.velocity.z**2);  // |v| km/s
-                const r = Math.sqrt(ecf.x**2 + ecf.y**2 + ecf.z**2);
-                const alt = r - EARTH_RADIUS;
-                // Geodetic: lat φ = arcsin(z/r), lon λ = arctan(y/x) (quadrant correct), alt h = r - R_e (approx, ignore flattening f=1/298.257)
-                const geodetic = satellite.eciToGeodetic(eci, gmst);
+                const ecf = satellite.eciToEcf(posVel.position, gmst);
+                const vel = Math.sqrt(posVel.velocity.x**2 + posVel.velocity.y**2 + posVel.velocity.z**2);
+                const alt = Math.sqrt(ecf.x**2 + ecf.y**2 + ecf.z**2) - EARTH_RADIUS;
+                const geodetic = satellite.eciToGeodetic(posVel.position, gmst);
                 const lat = satellite.degreesLat(geodetic.latitude);
                 const lon = satellite.degreesLong(geodetic.longitude);
-                satData.push({ id: tle[0].trim(), x: ecf.x, y: ecf.y, z: ecf.z, vel, alt, lat, lon, satrec });
+                const a = MU ** (1/3) / (satrec.no * (2 * Math.PI / 86400 / 60)) ** (2/3);  // semi-major km
+                const period = 2 * Math.PI * Math.sqrt(a**3 / MU) / 60;  // min
+                satData.push({ id: tle[0].trim(), x: ecf.x, y: ecf.y, z: ecf.z, vel, alt, lat, lon, satrec, period });
                 dummy.position.set(ecf.x * SCALE, ecf.y * SCALE, ecf.z * SCALE);
                 dummy.updateMatrix();
                 satsInstanced.setMatrixAt(i, dummy.matrix);
 
-                // Trail: Append pos, shift if full (visualizes Δr ≈ v Δt, Δt=5s → ~38 km shift)
                 if (showTrails) {
                     const trail = trails[i];
                     trail.pos[trail.index * 3] = ecf.x * SCALE;
@@ -201,29 +219,24 @@
                     trail.pos[trail.index * 3 + 2] = ecf.z * SCALE;
                     trail.index = (trail.index + 1) % TRAIL_LENGTH;
                     trail.geom.attributes.position.needsUpdate = true;
-                    trail.geom.setDrawRange(0, Math.min(trail.index, TRAIL_LENGTH));
+                    trail.geom.setDrawRange(0, trail.index);
                 }
 
-                // Orbit prediction: Sample Kepler ellipse in orbit plane, rotate to inertial (math: pos = r [cos ν cos ω - sin ν sin ω cos i, cos ν sin ω + sin ν cos ω cos i, sin ν sin i], r=a(1-e^2)/(1+e cos ν))
                 if (showOrbits) {
                     const orbit = orbits[i];
-                    const a = 6371 + satrec.no ? (MU / (satrec.no * (2 * Math.PI / 86400))** (2/3)) : 6928;  // km, from n=2π/T, T=2π sqrt(a^3/mu) → a = (mu / n^2)^{1/3}, n in rad/s
                     const e = satrec.ecco;
-                    const i = satrec.inclo;  // rad
-                    const Ω = satrec.nodeo;  // RAAN rad
-                    const ω = satrec.argpo;  // arg perigee rad
-                    const M0 = satrec.mo;  // mean anomaly rad (unused for full orbit)
+                    const inc = satrec.inclo;
+                    const raan = satrec.nodeo;
+                    const argp = satrec.argpo;
                     for (let step = 0; step < ORBIT_STEPS; step++) {
-                        const nu = (step / ORBIT_STEPS) * 2 * Math.PI;  // true anomaly
+                        const nu = (step / ORBIT_STEPS) * 2 * Math.PI;
                         const r_nu = a * (1 - e**2) / (1 + e * Math.cos(nu));
-                        const x_orb = r_nu * (Math.cos(nu) * Math.cos(ω) - Math.sin(nu) * Math.sin(ω) * Math.cos(i));
-                        const y_orb = r_nu * (Math.cos(nu) * Math.sin(ω) + Math.sin(nu) * Math.cos(ω) * Math.cos(i));
-                        const z_orb = r_nu * (Math.sin(nu) * Math.sin(i));
-                        // Rotate by RAAN: R_z(Ω) on [x_orb, y_orb, z_orb] → ECI approx (ignore nutation)
-                        const x_eci = x_orb * Math.cos(Ω) - y_orb * Math.sin(Ω);
-                        const y_eci = x_orb * Math.sin(Ω) + y_orb * Math.cos(Ω);
+                        let x_orb = r_nu * (Math.cos(nu) * Math.cos(argp) - Math.sin(nu) * Math.sin(argp) * Math.cos(inc));
+                        let y_orb = r_nu * (Math.cos(nu) * Math.sin(argp) + Math.sin(nu) * Math.cos(argp) * Math.cos(inc));
+                        let z_orb = r_nu * (Math.sin(nu) * Math.sin(inc));
+                        const x_eci = x_orb * Math.cos(raan) - y_orb * Math.sin(raan);
+                        const y_eci = x_orb * Math.sin(raan) + y_orb * Math.cos(raan);
                         const z_eci = z_orb;
-                        // To ECEF: Rotate by GMST (approx, for viz)
                         const x_ecf = x_eci * Math.cos(gmst) - y_eci * Math.sin(gmst);
                         const y_ecf = x_eci * Math.sin(gmst) + y_eci * Math.cos(gmst);
                         const z_ecf = z_eci;
@@ -235,23 +248,33 @@
                     orbit.geom.setDrawRange(0, ORBIT_STEPS);
                 }
 
-                // Collision check: Simple dist to prev (Δr = v Δt ~38 km/5s; alert if < thresh, teach: Real uses Lambert for conjunction)
                 const dx = ecf.x - prevPositions[i].x;
                 const dy = ecf.y - prevPositions[i].y;
                 const dz = ecf.z - prevPositions[i].z;
                 const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
                 if (dist < COLLISION_THRESHOLD) highRisk = true;
-                prevPositions[i] = ecf;
+                prevPositions[i] = {x: ecf.x, y: ecf.y, z: ecf.z};
+
+                // Shell bin: Find index where alt < bin[k], count non-zero bins as shells
+                for (let b = 0; b < SHELL_ALT_BINS.length; b++) {
+                    if (alt < SHELL_ALT_BINS[b]) {
+                        altHistogram[b]++;
+                        break;
+                    }
+                }
 
                 totalVel += vel;
                 totalAlt += alt;
+                totalPeriod += period;
                 validCount++;
             });
+            satsInstanced.instanceMatrix.needsUpdate = true;
+            satsInstanced.count = validCount;
 
-            // Laser links: Connect pairs < thresh (subsample every 100th for perf O(N^2/100), ~64k lines max)
+            // Links: Subsampled pairwise (every 50th for ~O((8000/50)^2) = 25k lines max)
             if (showLinks) {
-                for (let i = 0; i < validCount; i += 100) {  // Subsample step
-                    for (let j = i + 1; j < validCount; j += 100) {
+                for (let i = 0; i < validCount; i += 50) {
+                    for (let j = i + 50; j < validCount; j += 50) {
                         const sat1 = satData[i];
                         const sat2 = satData[j];
                         const dx = sat1.x - sat2.x;
@@ -270,21 +293,41 @@
                 }
             }
 
-            satsInstanced.instanceMatrix.needsUpdate = true;
-            satsInstanced.count = validCount;
             const avgVel = (totalVel / validCount).toFixed(2);
-            const avgAlt = (totalAlt / validCount).toFixed(0);
-            document.getElementById('info').textContent = `Starlink Sats: ${validCount} | Avg Vel: ${avgVel} km/s | Avg Alt: ${avgAlt} km | Click green dot (sat) for details`;
+            const avgAlt = (totalAlt / validCount).toFixed(1);
+            const avgPeriod = (totalPeriod / validCount).toFixed(1);
+            const shells = altHistogram.filter(count => count > 0).length;  // Non-empty bins as shells
+            document.getElementById('total-sats').textContent = validCount;
+            document.getElementById('shells').textContent = shells;
+            document.getElementById('avg-alt').textContent = `~${avgAlt} km`;
+            document.getElementById('avg-period').textContent = `~${avgPeriod} min`;
+            document.getElementById('avg-vel').textContent = `~${avgVel} km/s`;
+            document.getElementById('last-update').textContent = now.toLocaleTimeString();
+            document.getElementById('rendered-objs').textContent = scene.children.length + validCount;  // Approx: scene objs + instanced sats
             document.getElementById('alert').style.display = highRisk ? 'block' : 'none';
+            document.getElementById('auto-rotate-status').textContent = autoRotate ? 'Enabled' : 'Disabled';
+            document.getElementById('update-rate').textContent = `${UPDATE_INTERVAL / 1000} seconds`;
         }
 
+        let rotationAngle = 0;
         function animate() {
             requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            frameCount++;
+            if (Date.now() - lastFpsTime > 1000) {
+                fps = frameCount;
+                frameCount = 0;
+                lastFpsTime = Date.now();
+                document.getElementById('fps').textContent = fps;
+            }
+            if (autoRotate) {
+                rotationAngle += autoRotateSpeed * delta * 60;  // Normalize to deg/s
+                earth.rotation.y = rotationAngle * (Math.PI / 180);  // rad
+            }
             controls.update();
             renderer.render(scene, camera);
         }
 
-        // Click handler: Raycast to select sat, populate panel with details (teach: i=inclination (orbit tilt, cos i = z/r sin φ max), e=ecc (0=circle), a=semi-major (energy E=-mu/2a), Ω=RAAN (nodal longitude), ω=argp (periapsis angle), M=mean anomaly (position M=n(t-t_p)))
         window.addEventListener('mousedown', (e) => {
             mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
@@ -295,42 +338,39 @@
                 const data = satData[idx];
                 const panel = document.getElementById('detail-panel');
                 document.getElementById('sat-name').textContent = `Name: ${data.id}`;
-                document.getElementById('sat-loc').textContent = `Location: Lat ${data.lat.toFixed(4)}°, Lon ${data.lon.toFixed(4)}° (geodetic, φ=arcsin(z/r), λ=arctan(y/x))`;
-                document.getElementById('sat-vel').textContent = `Velocity: ${data.vel.toFixed(2)} km/s (|v| = sqrt(vx^2 + vy^2 + vz^2) ~ sqrt(mu/(R+h)))`;
-                document.getElementById('sat-alt').textContent = `Altitude: ${data.alt.toFixed(0)} km (h = ||r|| - R_e, r=sqrt(x^2+y^2+z^2))`;
-                document.getElementById('sat-inc').textContent = `Inclination: ${(data.satrec.inclo * 180 / Math.PI).toFixed(2)}° (i, angle to equatorial plane)`;
-                document.getElementById('sat-ecc').textContent = `Eccentricity: ${data.satrec.ecco.toFixed(6)} (e, 0=circular, shape factor)`;
-                document.getElementById('sat-sma').textContent = `Semi-Major Axis: ${ (MU / (data.satrec.no * (2 * Math.PI / 86400 / 60)**2 ) ** (1/3)).toFixed(0) } km (a = (mu / n^2)^{1/3}, n mean motion)`;
-                document.getElementById('sat-raan').textContent = `RAAN: ${(data.satrec.nodeo * 180 / Math.PI).toFixed(2)}° (Ω, ascending node longitude)`;
-                document.getElementById('sat-argp').textContent = `Arg Perigee: ${(data.satrec.argpo * 180 / Math.PI).toFixed(2)}° (ω, periapsis from node)`;
-                document.getElementById('sat-ma').textContent = `Mean Anomaly: ${(data.satrec.mo * 180 / Math.PI).toFixed(2)}° (M = n(t - t_p), position param)`;
+                document.getElementById('sat-loc').textContent = `Location: Lat ${data.lat.toFixed(4)}°, Lon ${data.lon.toFixed(4)}°`;
+                document.getElementById('sat-vel').textContent = `Velocity: ${data.vel.toFixed(2)} km/s`;
+                document.getElementById('sat-alt').textContent = `Altitude: ${data.alt.toFixed(0)} km`;
+                document.getElementById('sat-period').textContent = `Period: ${data.period.toFixed(1)} min (T = 2π sqrt(a^3/mu))`;
+                document.getElementById('sat-inc').textContent = `Inclination: ${(data.satrec.inclo * 180 / Math.PI).toFixed(2)}°`;
+                document.getElementById('sat-ecc').textContent = `Eccentricity: ${data.satrec.ecco.toFixed(6)}`;
+                document.getElementById('sat-sma').textContent = `Semi-Major Axis: ${ (MU / (data.satrec.no * (2 * Math.PI / 86400 / 60)**2 ) ** (1/3)).toFixed(0) } km`;
+                document.getElementById('sat-raan').textContent = `RAAN: ${(data.satrec.nodeo * 180 / Math.PI).toFixed(2)}°`;
+                document.getElementById('sat-argp').textContent = `Arg Perigee: ${(data.satrec.argpo * 180 / Math.PI).toFixed(2)}°`;
+                document.getElementById('sat-ma').textContent = `Mean Anomaly: ${(data.satrec.mo * 180 / Math.PI).toFixed(2)}°`;
                 panel.style.display = 'block';
                 selectedSat = idx;
             }
         });
 
-        // Toggle buttons: Show/hide features (trails/orbits/links visibility)
-        document.getElementById('toggle-trails').addEventListener('click', () => {
-            showTrails = !showTrails;
-            trails.forEach(t => t.geom.parent.visible = showTrails);
-        });
-        document.getElementById('toggle-orbits').addEventListener('click', () => {
-            showOrbits = !showOrbits;
-            orbits.forEach(o => o.geom.parent.visible = showOrbits);
-            if (showOrbits) updatePositions();  // Recalc on enable
-        });
-        document.getElementById('toggle-links').addEventListener('click', () => {
-            showLinks = !showLinks;
-            linksGroup.visible = showLinks;
-            if (showLinks) updatePositions();
-        });
+        document.getElementById('toggle-trails').addEventListener('click', () => { showTrails = !showTrails; trails.forEach(t => t.geom.parent.visible = showTrails); });
+        document.getElementById('toggle-orbits').addEventListener('click', () => { showOrbits = !showOrbits; orbits.forEach(o => o.geom.parent.visible = showOrbits); if (showOrbits) updatePositions(); });
+        document.getElementById('toggle-links').addEventListener('click', () => { showLinks = !showLinks; linksGroup.visible = showLinks; if (showLinks) updatePositions(); });
+        document.getElementById('toggle-auto-rotate').addEventListener('click', () => { autoRotate = !autoRotate; document.getElementById('auto-rotate-status').textContent = autoRotate ? 'Enabled' : 'Disabled'; });
 
-        // Init: First update (fetches ~8000 sats, names from TLE line0 e.g. "STARLINK-1234"), real-time loop
+        if ('memory' in performance) {
+            setInterval(() => {
+                const mem = performance.memory;
+                document.getElementById('memory').textContent = `${(mem.usedJSHeapSize / 1048576).toFixed(1)} MB`;
+            }, 5000);
+        } else {
+            document.getElementById('memory').textContent = 'Unavailable';
+        }
+
         updatePositions();
-        setInterval(updatePositions, 5000);  // 5s refresh (balance: API limits none, but compute O(N) ~1s on mid GPU)
+        setInterval(updatePositions, UPDATE_INTERVAL);
         animate();
 
-        // Resize: Update proj matrix (aspect=w/h, fov tan(fov/2)=opp/adj)
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();

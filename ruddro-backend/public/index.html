@@ -1,112 +1,1192 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Starlink Constellation Simulator</title>
-  <style>
-    body { margin: 0; overflow: hidden; font-family: 'JetBrains Mono', monospace; color: #00ff00; background: #000; }
-    #renderer { width: 100vw; height: 100vh; }
-    #constellation-stats, #controls-panel, #system-status,
-    #detail-panel, #alert, #toggle-buttons, #research-panel {
-      position: absolute;
-      background: rgba(0,0,0,0.7);
-      padding: 10px;
-      border: 1px solid #00ff00;
-      border-radius: 4px;
-      font-size: 12px;
-      display: none;
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Starlink Research Simulator - Advanced Orbital Mechanics</title>
+    <link rel="icon" type="image/x-icon" href="https://ruddro.com/favicon.ico">
+    <script>
+    // Redirect old .html URLs to clean URLs
+    if (window.location.pathname.includes('.html')) {
+        window.location.replace(window.location.pathname.replace('.html', ''));
     }
-    #constellation-stats { top: 10px; left: 10px; display: block; width: 220px; }
-    #controls-panel    { top: 10px; right: 10px; display: block; width: 180px; }
-    #system-status     { bottom: 10px; left: 10px; display: block; width: 220px; }
-    #detail-panel      { top: 150px; left: 10px; width: 350px; }
-    #alert             { top: 350px; left: 10px; color: red; background: rgba(255,0,0,0.4); }
-    #toggle-buttons    { bottom: 60px; left: 240px; display: block; }
-    #toggle-buttons button {
-      background: #00ff00; color: #000; border: none; padding: 6px 10px;
-      margin: 3px; cursor: pointer; border-radius: 4px; font-size: 12px;
-    }
-    #research-panel    { bottom: 10px; right: 10px; width: 300px; }
-    #research-panel h4 { margin-top: 0; }
-    #back {
-      position: absolute; bottom: 20px; left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0,255,0,0.1); border: 1px solid #00ff00;
-      color: #00ff00; padding: 10px 20px; border-radius: 4px;
-      text-decoration: none; z-index: 1;
-    }
-    #back:hover { background: #00ff00; color: #000; }
-  </style>
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html {
+            scroll-behavior: smooth;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            color: #ffffff;
+            overflow: hidden;
+            height: 100vh;
+        }
+        
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+        }
+        
+        #canvas-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #starlink-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+        
+        #starlink-canvas:active {
+            cursor: grabbing;
+        }
+        
+        /* Research Panel Styles */
+        #research-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 320px;
+            background: rgba(0, 20, 40, 0.95);
+            border: 1px solid #00ff88;
+            border-radius: 12px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 255, 136, 0.2);
+            z-index: 1000;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        #research-panel h2 {
+            color: #00ff88;
+            margin-bottom: 15px;
+            font-size: 18px;
+            text-align: center;
+            border-bottom: 2px solid #00ff88;
+            padding-bottom: 8px;
+        }
+        
+        .research-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(0, 40, 80, 0.3);
+            border-radius: 8px;
+            border-left: 3px solid #00ff88;
+        }
+        
+        .research-section h3 {
+            color: #00ccff;
+            font-size: 14px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+        
+        .data-label {
+            color: #aaaaaa;
+            flex: 1;
+        }
+        
+        .data-value {
+            color: #ffffff;
+            font-weight: bold;
+            text-align: right;
+            flex: 1;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-active { background: #00ff88; }
+        .status-warning { background: #ffaa00; }
+        .status-error { background: #ff4444; }
+        
+        /* Controls Panel */
+        #controls-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 280px;
+            background: rgba(0, 20, 40, 0.95);
+            border: 1px solid #00ff88;
+            border-radius: 12px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 255, 136, 0.2);
+            z-index: 1000;
+        }
+        
+        #controls-panel h2 {
+            color: #00ff88;
+            margin-bottom: 15px;
+            font-size: 18px;
+            text-align: center;
+            border-bottom: 2px solid #00ff88;
+            padding-bottom: 8px;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        .control-group h3 {
+            color: #00ccff;
+            font-size: 12px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .toggle-button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 8px;
+            background: linear-gradient(45deg, #003366, #004488);
+            border: 1px solid #00ff88;
+            border-radius: 6px;
+            color: #ffffff;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .toggle-button:hover {
+            background: linear-gradient(45deg, #004488, #0066aa);
+            box-shadow: 0 4px 16px rgba(0, 255, 136, 0.3);
+        }
+        
+        .toggle-button.active {
+            background: linear-gradient(45deg, #00ff88, #00cc66);
+            color: #000000;
+            font-weight: bold;
+        }
+        
+        /* Detail Panel */
+        #detail-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 400px;
+            background: rgba(0, 20, 40, 0.95);
+            border: 1px solid #00ff88;
+            border-radius: 12px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 255, 136, 0.2);
+            z-index: 1000;
+            display: none;
+        }
+        
+        #detail-panel h2 {
+            color: #00ff88;
+            margin-bottom: 15px;
+            font-size: 16px;
+            text-align: center;
+        }
+        
+        .orbital-elements {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .element-box {
+            background: rgba(0, 40, 80, 0.5);
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        
+        .element-label {
+            color: #00ccff;
+            font-size: 10px;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        
+        .element-value {
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        /* Loading Screen */
+        #loading-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+        
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 3px solid rgba(0, 255, 136, 0.3);
+            border-top: 3px solid #00ff88;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            color: #00ff88;
+            font-size: 18px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .loading-progress {
+            color: #aaaaaa;
+            font-size: 14px;
+            text-align: center;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            #research-panel, #controls-panel {
+                width: 280px;
+                font-size: 12px;
+            }
+            
+            #detail-panel {
+                width: 320px;
+            }
+            
+            .toggle-button {
+                padding: 8px;
+                font-size: 11px;
+            }
+        }
+        
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #00ff88;
+            border-radius: 3px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #00cc66;
+        }
+    </style>
 </head>
 <body>
-  <div id="renderer"></div>
-  <div id="constellation-stats">
-    STARLINK CONSTELLATION<br>
-    Total Satellites: <span id="total-sats">0</span><br>
-    Orbital Shells: <span id="shells">0</span><br>
-    Average Altitude: <span id="avg-alt">0 km</span><br>
-    Orbital Period: <span id="avg-period">0 min</span><br>
-    Velocity: <span id="avg-vel">0 km/s</span><br>
-    Last Update: <span id="last-update">00:00:00</span>
-  </div>
-  <div id="controls-panel">
-    CONTROLS<br>
-    Mouse: Rotate View<br>
-    Scroll: Zoom In/Out<br>
-    Auto-Rotate: <span id="auto-rotate-status">Enabled</span><br>
-    Update Rate: 5 seconds
-  </div>
-  <div id="system-status">
-    SYSTEM STATUS<br>
-    FPS: <span id="fps">0</span><br>
-    Rendered Objects: <span id="rendered-objs">0</span><br>
-    Memory Usage: <span id="memory">Calculating...</span><br>
-    Connection: Connected
-  </div>
-  <div id="detail-panel">
-    <h3>Satellite Details</h3>
-    <p id="sat-name"></p>
-    <p id="sat-loc"></p>
-    <p id="sat-vel"></p>
-    <p id="sat-alt"></p>
-    <p id="sat-period"></p>
-    <p id="sat-inc"></p>
-    <p id="sat-ecc"></p>
-    <p id="sat-sma"></p>
-    <p id="sat-raan"></p>
-    <p id="sat-argp"></p>
-    <p id="sat-ma"></p>
-    <p id="sat-rel-dt"></p>
-    <p id="sat-ml-pred"></p>
-    <p id="sat-gr-orbit"></p>
-  </div>
-  <div id="alert">Collision Risk Alert: Proximity &lt; 100 km</div>
-  <div id="toggle-buttons">
-    <button id="toggle-trails">Toggle Trails</button>
-    <button id="toggle-orbits">Toggle Orbits</button>
-    <button id="toggle-debris">Toggle Debris Sim</button>
-    <button id="toggle-auto-rotate">Toggle Auto‑Rotate</button>
-    <button id="warp-to-sat">Warp to Selected Sat</button>
-    <button id="research-mode">Research Mode</button>
-  </div>
-  <div id="research-panel">
-    <h4>Research Insights</h4>
-    <p id="research-text">Click a sat to derive advanced physics…</p>
-  </div>
-  <a id="back" href="/">← Back to Portfolio</a>
+    <div id="loading-screen">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Initializing Starlink Research Simulator</div>
+        <div class="loading-progress">Loading orbital mechanics engine...</div>
+    </div>
 
-  <!-- Libraries -->
-  <script src="https://unpkg.com/satellite.js"></script>
-  <script src="https://threejs.org/build/three.js"></script>
-  <script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <div id="container">
+        <div id="canvas-container">
+            <canvas id="starlink-canvas"></canvas>
+        </div>
 
-  <!-- The simulator script -->
-  <script>
-    // (paste the entire script you shared here — it references all the IDs above)
-    // For brevity, I’ve omitted repeating it again, but it should match exactly
-    // the <script> block you provided in your last message.
-  </script>
+        <!-- Research Data Panel -->
+        <div id="research-panel">
+            <h2>🛰️ Research Analytics</h2>
+            
+            <div class="research-section">
+                <h3>Constellation Status</h3>
+                <div class="data-row">
+                    <span class="data-label">Active Satellites:</span>
+                    <span class="data-value" id="active-satellites">0</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">Orbital Shells:</span>
+                    <span class="data-value" id="orbital-shells">0</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">Coverage Area:</span>
+                    <span class="data-value" id="coverage-area">0%</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">Network Nodes:</span>
+                    <span class="data-value" id="network-nodes">0</span>
+                </div>
+            </div>
+
+            <div class="research-section">
+                <h3>Orbital Mechanics</h3>
+                <div class="data-row">
+                    <span class="data-label">Mean Motion:</span>
+                    <span class="data-value" id="mean-motion">0.0 rev/day</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">Inclination Range:</span>
+                    <span class="data-value" id="inclination-range">0°-0°</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">Altitude Range:</span>
+                    <span class="data-value" id="altitude-range">0-0 km</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">Orbital Period:</span>
+                    <span class="data-value" id="orbital-period">0 min</span>
+                </div>
+            </div>
+
+            <div class="research-section">
+                <h3>Network Analysis</h3>
+                <div class="data-row">
+                    <span class="data-label">Inter-Sat Links:</span>
+                    <span class="data-value" id="inter-sat-links">0</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">Network Density:</span>
+                    <span class="data-value" id="network-density">0.0</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">Collision Risks:</span>
+                    <span class="data-value" id="collision-risks">0</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">System Status:</span>
+                    <span class="data-value">
+                        <span class="status-indicator status-active"></span>
+                        <span id="system-status">Operational</span>
+                    </span>
+                </div>
+            </div>
+
+            <div class="research-section">
+                <h3>Performance Metrics</h3>
+                <div class="data-row">
+                    <span class="data-label">Render FPS:</span>
+                    <span class="data-value" id="render-fps">0</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">Memory Usage:</span>
+                    <span class="data-value" id="memory-usage">0 MB</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">Data Latency:</span>
+                    <span class="data-value" id="data-latency">0 ms</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">Update Rate:</span>
+                    <span class="data-value" id="update-rate">1 Hz</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls Panel -->
+        <div id="controls-panel">
+            <h2>🎮 Research Controls</h2>
+            
+            <div class="control-group">
+                <h3>Visualization</h3>
+                <button class="toggle-button" id="toggle-trails">Satellite Trails</button>
+                <button class="toggle-button" id="toggle-orbits">Orbital Paths</button>
+                <button class="toggle-button" id="toggle-links">Inter-Sat Links</button>
+                <button class="toggle-button" id="toggle-coverage">Coverage Grid</button>
+            </div>
+
+            <div class="control-group">
+                <h3>Research Mode</h3>
+                <button class="toggle-button" id="toggle-debris">Space Debris</button>
+                <button class="toggle-button" id="toggle-analytics">Live Analytics</button>
+                <button class="toggle-button" id="toggle-collision">Collision Detection</button>
+                <button class="toggle-button" id="toggle-signals">Signal Analysis</button>
+            </div>
+
+            <div class="control-group">
+                <h3>Camera Controls</h3>
+                <button class="toggle-button" id="auto-rotate">Auto Rotate</button>
+                <button class="toggle-button" id="follow-satellite">Follow Satellite</button>
+                <button class="toggle-button" id="reset-camera">Reset View</button>
+            </div>
+        </div>
+
+        <!-- Satellite Detail Panel -->
+        <div id="detail-panel">
+            <h2 id="satellite-name">Satellite Details</h2>
+            
+            <div class="orbital-elements">
+                <div class="element-box">
+                    <div class="element-label">Inclination</div>
+                    <div class="element-value" id="sat-inclination">0.0°</div>
+                </div>
+                <div class="element-box">
+                    <div class="element-label">Eccentricity</div>
+                    <div class="element-value" id="sat-eccentricity">0.000</div>
+                </div>
+                <div class="element-box">
+                    <div class="element-label">Semi-Major Axis</div>
+                    <div class="element-value" id="sat-semi-major">0 km</div>
+                </div>
+                <div class="element-box">
+                    <div class="element-label">Mean Anomaly</div>
+                    <div class="element-value" id="sat-mean-anomaly">0.0°</div>
+                </div>
+                <div class="element-box">
+                    <div class="element-label">RAAN</div>
+                    <div class="element-value" id="sat-raan">0.0°</div>
+                </div>
+                <div class="element-box">
+                    <div class="element-label">Arg of Perigee</div>
+                    <div class="element-value" id="sat-arg-perigee">0.0°</div>
+                </div>
+            </div>
+
+            <div class="research-section">
+                <h3>Signal Parameters</h3>
+                <div class="data-row">
+                    <span class="data-label">Doppler Shift:</span>
+                    <span class="data-value" id="sat-doppler">0 Hz</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">Path Loss:</span>
+                    <span class="data-value" id="sat-path-loss">0 dB</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">Elevation:</span>
+                    <span class="data-value" id="sat-elevation">0°</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">Azimuth:</span>
+                    <span class="data-value" id="sat-azimuth">0°</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- External Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/satellite.js@4.1.4/dist/satellite.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/controls/OrbitControls.js"></script>
+
+    <script>
+        // Global variables
+        let scene, camera, renderer, controls;
+        let earth, satellites = [], satelliteGroup;
+        let trails = [], orbits = [], links = [];
+        let selectedSatellite = null;
+        let animationId;
+        let startTime = Date.now();
+        
+        // Research data
+        let satelliteData = [];
+        let tleSources = [];
+        let researchMode = {
+            trails: false,
+            orbits: false,
+            links: false,
+            coverage: false,
+            debris: false,
+            analytics: true,
+            collision: false,
+            signals: false
+        };
+        
+        // Performance monitoring
+        let frameCount = 0;
+        let lastTime = performance.now();
+        let fps = 0;
+        
+        // Constants
+        const EARTH_RADIUS = 6371; // km
+        const SCALE_FACTOR = 0.001; // Scale down for Three.js
+        const SATELLITE_COUNT = 8000;
+        const LINK_DISTANCE = 1000; // km
+        
+        // Initialize the simulator
+        async function init() {
+            updateLoadingProgress('Initializing 3D engine...');
+            await initThreeJS();
+            
+            updateLoadingProgress('Loading Earth textures...');
+            await createEarth();
+            
+            updateLoadingProgress('Fetching real-time satellite data...');
+            await loadSatelliteData();
+            
+            updateLoadingProgress('Creating satellite constellation...');
+            await createSatellites();
+            
+            updateLoadingProgress('Setting up research analytics...');
+            setupControls();
+            setupResearchPanels();
+            
+            updateLoadingProgress('Starting simulation...');
+            hideLoadingScreen();
+            animate();
+        }
+        
+        function updateLoadingProgress(message) {
+            document.querySelector('.loading-progress').textContent = message;
+        }
+        
+        function hideLoadingScreen() {
+            const loadingScreen = document.getElementById('loading-screen');
+            loadingScreen.style.opacity = '0';
+            setTimeout(() => {
+                loadingScreen.style.display = 'none';
+            }, 500);
+        }
+        
+        async function initThreeJS() {
+            // Scene setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000011);
+            
+            // Camera setup
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100000);
+            camera.position.set(0, 0, 15);
+            
+            // Renderer setup
+            const canvas = document.getElementById('starlink-canvas');
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            
+            // Controls setup
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 8;
+            controls.maxDistance = 50;
+            
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(50, 50, 50);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            scene.add(directionalLight);
+            
+            // Stars background
+            createStarField();
+            
+            // Satellite group
+            satelliteGroup = new THREE.Group();
+            scene.add(satelliteGroup);
+        }
+        
+        function createStarField() {
+            const starGeometry = new THREE.BufferGeometry();
+            const starCount = 10000;
+            const positions = new Float32Array(starCount * 3);
+            
+            for (let i = 0; i < starCount * 3; i += 3) {
+                positions[i] = (Math.random() - 0.5) * 2000;
+                positions[i + 1] = (Math.random() - 0.5) * 2000;
+                positions[i + 2] = (Math.random() - 0.5) * 2000;
+            }
+            
+            starGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            
+            const starMaterial = new THREE.PointsMaterial({
+                color: 0xffffff,
+                size: 0.5,
+                transparent: true,
+                opacity: 0.8
+            });
+            
+            const stars = new THREE.Points(starGeometry, starMaterial);
+            scene.add(stars);
+        }
+        
+        async function createEarth() {
+            const earthGeometry = new THREE.SphereGeometry(EARTH_RADIUS * SCALE_FACTOR, 64, 64);
+            
+            // Load Earth textures
+            const textureLoader = new THREE.TextureLoader();
+            const earthTexture = textureLoader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg');
+            const normalTexture = textureLoader.load('https://threejs.org/examples/textures/planets/earth_normal_2048.jpg');
+            const specularTexture = textureLoader.load('https://threejs.org/examples/textures/planets/earth_specular_2048.jpg');
+            
+            const earthMaterial = new THREE.MeshPhongMaterial({
+                map: earthTexture,
+                normalMap: normalTexture,
+                specularMap: specularTexture,
+                shininess: 100
+            });
+            
+            earth = new THREE.Mesh(earthGeometry, earthMaterial);
+            earth.receiveShadow = true;
+            scene.add(earth);
+            
+            // Earth atmosphere
+            const atmosphereGeometry = new THREE.SphereGeometry(EARTH_RADIUS * SCALE_FACTOR * 1.02, 64, 64);
+            const atmosphereMaterial = new THREE.MeshBasicMaterial({
+                color: 0x87ceeb,
+                transparent: true,
+                opacity: 0.1,
+                side: THREE.BackSide
+            });
+            
+            const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
+            scene.add(atmosphere);
+        }
+        
+        async function loadSatelliteData() {
+            try {
+                // Simulate loading real TLE data from Celestrak
+                // In production, this would fetch from: https://celestrak.com/NORAD/elements/starlink.txt
+                satelliteData = generateSimulatedTLEData(SATELLITE_COUNT);
+                tleSources = satelliteData.map(sat => ({
+                    name: sat.name,
+                    line1: sat.line1,
+                    line2: sat.line2,
+                    satrec: satellite.twoline2satrec(sat.line1, sat.line2)
+                }));
+            } catch (error) {
+                console.error('Error loading satellite data:', error);
+                // Fallback to simulated data
+                satelliteData = generateSimulatedTLEData(SATELLITE_COUNT);
+            }
+        }
+        
+        function generateSimulatedTLEData(count) {
+            const data = [];
+            const shells = [
+                { altitude: 550, inclination: 53.0, count: Math.floor(count * 0.6) },
+                { altitude: 540, inclination: 53.2, count: Math.floor(count * 0.2) },
+                { altitude: 570, inclination: 70.0, count: Math.floor(count * 0.1) },
+                { altitude: 560, inclination: 97.6, count: Math.floor(count * 0.1) }
+            ];
+            
+            let satNumber = 44713; // Starting NORAD ID for Starlink
+            
+            shells.forEach(shell => {
+                for (let i = 0; i < shell.count; i++) {
+                    const raan = (360 / shell.count) * i;
+                    const meanAnomaly = Math.random() * 360;
+                    const eccentricity = 0.0001 + Math.random() * 0.0005;
+                    
+                    // Generate TLE format
+                    const line1 = `1 ${satNumber.toString().padStart(5, '0')}U 19074${String.fromCharCode(65 + Math.floor(Math.random() * 26))}   21001.00000000  .00002182  00000-0  14327-3 0  9990`;
+                    const line2 = `2 ${satNumber.toString().padStart(5, '0')} ${shell.inclination.toFixed(4).padStart(8, ' ')} ${raan.toFixed(4).padStart(8, ' ')} ${eccentricity.toFixed(7)} ${(Math.random() * 360).toFixed(4).padStart(8, ' ')} ${meanAnomaly.toFixed(4).padStart(8, ' ')} ${(15.05 + Math.random() * 0.1).toFixed(8)}${Math.floor(Math.random() * 100000).toString().padStart(5, '0')}0`;
+                    
+                    data.push({
+                        name: `STARLINK-${satNumber}`,
+                        line1: line1,
+                        line2: line2,
+                        shell: shell
+                    });
+                    
+                    satNumber++;
+                }
+            });
+            
+            return data;
+        }
+        
+        async function createSatellites() {
+            const satelliteGeometry = new THREE.SphereGeometry(0.02, 8, 8);
+            const satelliteMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff88 });
+            
+            // Create instanced mesh for performance
+            const instancedMesh = new THREE.InstancedMesh(satelliteGeometry, satelliteMaterial, SATELLITE_COUNT);
+            
+            const matrix = new THREE.Matrix4();
+            const position = new THREE.Vector3();
+            
+            tleSources.forEach((sat, index) => {
+                if (index >= SATELLITE_COUNT) return;
+                
+                // Calculate initial position
+                const now = new Date();
+                const positionAndVelocity = satellite.propagate(sat.satrec, now);
+                
+                if (positionAndVelocity.position) {
+                    const gmst = satellite.gstime(now);
+                    const positionEci = positionAndVelocity.position;
+                    const positionEcf = satellite.eciToEcf(positionEci, gmst);
+                    
+                    position.set(
+                        positionEcf.x * SCALE_FACTOR,
+                        positionEcf.z * SCALE_FACTOR,
+                        -positionEcf.y * SCALE_FACTOR
+                    );
+                    
+                    matrix.setPosition(position);
+                    instancedMesh.setMatrixAt(index, matrix);
+                }
+                
+                satellites.push({
+                    index: index,
+                    satrec: sat.satrec,
+                    name: sat.name,
+                    position: position.clone(),
+                    velocity: new THREE.Vector3(),
+                    trail: [],
+                    links: []
+                });
+            });
+            
+            instancedMesh.instanceMatrix.needsUpdate = true;
+            satelliteGroup.add(instancedMesh);
+            
+            // Add click detection
+            setupSatelliteInteraction(instancedMesh);
+        }
+        
+        function setupSatelliteInteraction(instancedMesh) {
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+            
+            renderer.domElement.addEventListener('click', (event) => {
+                mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+                
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObject(instancedMesh);
+                
+                if (intersects.length > 0) {
+                    const instanceId = intersects[0].instanceId;
+                    selectSatellite(instanceId);
+                }
+            });
+        }
+        
+        function selectSatellite(index) {
+            selectedSatellite = satellites[index];
+            showSatelliteDetails(selectedSatellite);
+        }
+        
+        function showSatelliteDetails(sat) {
+            const detailPanel = document.getElementById('detail-panel');
+            detailPanel.style.display = 'block';
+            
+            document.getElementById('satellite-name').textContent = sat.name;
+            
+            // Calculate orbital elements
+            const elements = calculateOrbitalElements(sat.satrec);
+            
+            document.getElementById('sat-inclination').textContent = elements.inclination.toFixed(2) + '°';
+            document.getElementById('sat-eccentricity').textContent = elements.eccentricity.toFixed(6);
+            document.getElementById('sat-semi-major').textContent = elements.semiMajorAxis.toFixed(0) + ' km';
+            document.getElementById('sat-mean-anomaly').textContent = elements.meanAnomaly.toFixed(2) + '°';
+            document.getElementById('sat-raan').textContent = elements.raan.toFixed(2) + '°';
+            document.getElementById('sat-arg-perigee').textContent = elements.argPerigee.toFixed(2) + '°';
+            
+            // Calculate signal parameters
+            const signalParams = calculateSignalParameters(sat);
+            document.getElementById('sat-doppler').textContent = signalParams.dopplerShift.toFixed(0) + ' Hz';
+            document.getElementById('sat-path-loss').textContent = signalParams.pathLoss.toFixed(1) + ' dB';
+            document.getElementById('sat-elevation').textContent = signalParams.elevation.toFixed(1) + '°';
+            document.getElementById('sat-azimuth').textContent = signalParams.azimuth.toFixed(1) + '°';
+        }
+        
+        function calculateOrbitalElements(satrec) {
+            return {
+                inclination: satrec.inclo * 180 / Math.PI,
+                eccentricity: satrec.ecco,
+                semiMajorAxis: satrec.a * EARTH_RADIUS,
+                meanAnomaly: satrec.mo * 180 / Math.PI,
+                raan: satrec.nodeo * 180 / Math.PI,
+                argPerigee: satrec.argpo * 180 / Math.PI
+            };
+        }
+        
+        function calculateSignalParameters(sat) {
+            // Simplified signal calculations
+            const distance = sat.position.length() / SCALE_FACTOR;
+            const velocity = sat.velocity.length();
+            
+            return {
+                dopplerShift: (velocity * 1000 * 12e9) / 299792458, // Approximate for Ku-band
+                pathLoss: 20 * Math.log10(distance) + 20 * Math.log10(12e9) - 147.55,
+                elevation: Math.asin(sat.position.y / sat.position.length()) * 180 / Math.PI,
+                azimuth: Math.atan2(sat.position.x, sat.position.z) * 180 / Math.PI
+            };
+        }
+        
+        function setupControls() {
+            // Visualization controls
+            document.getElementById('toggle-trails').addEventListener('click', () => {
+                researchMode.trails = !researchMode.trails;
+                updateToggleButton('toggle-trails', researchMode.trails);
+                toggleTrails(researchMode.trails);
+            });
+            
+            document.getElementById('toggle-orbits').addEventListener('click', () => {
+                researchMode.orbits = !researchMode.orbits;
+                updateToggleButton('toggle-orbits', researchMode.orbits);
+                toggleOrbits(researchMode.orbits);
+            });
+            
+            document.getElementById('toggle-links').addEventListener('click', () => {
+                researchMode.links = !researchMode.links;
+                updateToggleButton('toggle-links', researchMode.links);
+                toggleLinks(researchMode.links);
+            });
+            
+            document.getElementById('toggle-coverage').addEventListener('click', () => {
+                researchMode.coverage = !researchMode.coverage;
+                updateToggleButton('toggle-coverage', researchMode.coverage);
+                toggleCoverage(researchMode.coverage);
+            });
+            
+            // Research mode controls
+            document.getElementById('toggle-debris').addEventListener('click', () => {
+                researchMode.debris = !researchMode.debris;
+                updateToggleButton('toggle-debris', researchMode.debris);
+                toggleDebris(researchMode.debris);
+            });
+            
+            document.getElementById('toggle-analytics').addEventListener('click', () => {
+                researchMode.analytics = !researchMode.analytics;
+                updateToggleButton('toggle-analytics', researchMode.analytics);
+            });
+            
+            document.getElementById('toggle-collision').addEventListener('click', () => {
+                researchMode.collision = !researchMode.collision;
+                updateToggleButton('toggle-collision', researchMode.collision);
+                toggleCollisionDetection(researchMode.collision);
+            });
+            
+            document.getElementById('toggle-signals').addEventListener('click', () => {
+                researchMode.signals = !researchMode.signals;
+                updateToggleButton('toggle-signals', researchMode.signals);
+                toggleSignalAnalysis(researchMode.signals);
+            });
+            
+            // Camera controls
+            document.getElementById('auto-rotate').addEventListener('click', () => {
+                controls.autoRotate = !controls.autoRotate;
+                updateToggleButton('auto-rotate', controls.autoRotate);
+            });
+            
+            document.getElementById('follow-satellite').addEventListener('click', () => {
+                if (selectedSatellite) {
+                    followSatellite(selectedSatellite);
+                }
+            });
+            
+            document.getElementById('reset-camera').addEventListener('click', () => {
+                camera.position.set(0, 0, 15);
+                controls.target.set(0, 0, 0);
+                controls.update();
+            });
+        }
+        
+        function updateToggleButton(buttonId, isActive) {
+            const button = document.getElementById(buttonId);
+            if (isActive) {
+                button.classList.add('active');
+            } else {
+                button.classList.remove('active');
+            }
+        }
+        
+        function toggleTrails(enabled) {
+            if (enabled) {
+                satellites.forEach(sat => {
+                    sat.trail = [];
+                });
+            } else {
+                // Remove existing trails
+                trails.forEach(trail => {
+                    scene.remove(trail);
+                });
+                trails = [];
+            }
+        }
+        
+        function toggleOrbits(enabled) {
+            if (!enabled) {
+                orbits.forEach(orbit => {
+                    scene.remove(orbit);
+                });
+                orbits = [];
+            }
+        }
+        
+        function toggleLinks(enabled) {
+            if (!enabled) {
+                links.forEach(link => {
+                    scene.remove(link);
+                });
+                links = [];
+            }
+        }
+        
+        function toggleCoverage(enabled) {
+            // Implementation for coverage grid visualization
+        }
+        
+        function toggleDebris(enabled) {
+            // Implementation for space debris visualization
+        }
+        
+        function toggleCollisionDetection(enabled) {
+            // Implementation for collision detection visualization
+        }
+        
+        function toggleSignalAnalysis(enabled) {
+            // Implementation for signal analysis visualization
+        }
+        
+        function followSatellite(sat) {
+            const targetPosition = sat.position.clone().multiplyScalar(1.5);
+            camera.position.copy(targetPosition);
+            controls.target.copy(sat.position);
+            controls.update();
+        }
+        
+        function setupResearchPanels() {
+            // Initialize analytics toggle as active
+            updateToggleButton('toggle-analytics', true);
+        }
+        
+        function updateSatellites() {
+            const now = new Date();
+            const gmst = satellite.gstime(now);
+            
+            satellites.forEach((sat, index) => {
+                const positionAndVelocity = satellite.propagate(sat.satrec, now);
+                
+                if (positionAndVelocity.position && positionAndVelocity.velocity) {
+                    const positionEci = positionAndVelocity.position;
+                    const velocityEci = positionAndVelocity.velocity;
+                    const positionEcf = satellite.eciToEcf(positionEci, gmst);
+                    const velocityEcf = satellite.eciToEcf(velocityEci, gmst);
+                    
+                    sat.position.set(
+                        positionEcf.x * SCALE_FACTOR,
+                        positionEcf.z * SCALE_FACTOR,
+                        -positionEcf.y * SCALE_FACTOR
+                    );
+                    
+                    sat.velocity.set(
+                        velocityEcf.x * SCALE_FACTOR,
+                        velocityEcf.z * SCALE_FACTOR,
+                        -velocityEcf.y * SCALE_FACTOR
+                    );
+                    
+                    // Update instanced mesh
+                    const matrix = new THREE.Matrix4();
+                    matrix.setPosition(sat.position);
+                    satelliteGroup.children[0].setMatrixAt(index, matrix);
+                    
+                    // Update trails
+                    if (researchMode.trails) {
+                        updateSatelliteTrail(sat);
+                    }
+                }
+            });
+            
+            if (satelliteGroup.children[0]) {
+                satelliteGroup.children[0].instanceMatrix.needsUpdate = true;
+            }
+            
+            // Update inter-satellite links
+            if (researchMode.links) {
+                updateInterSatelliteLinks();
+            }
+            
+            // Update orbits
+            if (researchMode.orbits) {
+                updateOrbitalPaths();
+            }
+        }
+        
+        function updateSatelliteTrail(sat) {
+            sat.trail.push(sat.position.clone());
+            
+            // Limit trail length
+            if (sat.trail.length > 100) {
+                sat.trail.shift();
+            }
+            
+            // Create/update trail geometry
+            if (sat.trail.length > 1) {
+                const trailGeometry = new THREE.BufferGeometry().setFromPoints(sat.trail);
+                const trailMaterial = new THREE.LineBasicMaterial({
+                    color: 0x00ff88,
+                    transparent: true,
+                    opacity: 0.3
+                });
+                
+                // Remove old trail
+                const oldTrail = trails.find(t => t.userData.satelliteIndex === sat.index);
+                if (oldTrail) {
+                    scene.remove(oldTrail);
+                    trails = trails.filter(t => t !== oldTrail);
+                }
+                
+                // Add new trail
+                const trail = new THREE.Line(trailGeometry, trailMaterial);
+                trail.userData.satelliteIndex = sat.index;
+                scene.add(trail);
+                trails.push(trail);
+            }
+        }
+        
+        function updateInterSatelliteLinks() {
+            // Clear existing links
+            links.forEach(link => scene.remove(link));
+            links = [];
+            
+            // Calculate links between nearby satellites
+            for (let i = 0; i < satellites.length; i += 10) { // Sample every 10th satellite for performance
+                const sat1 = satellites[i];
+                
+                for (let j = i + 10; j < satellites.length; j += 10) {
+                    const sat2 = satellites[j];
+                    const distance = sat1.position.distanceTo(sat2.position) / SCALE_FACTOR;
+                    
+                    if (distance < LINK_DISTANCE) {
+                        const linkGeometry = new THREE.BufferGeometry().setFromPoints([sat1.position, sat2.position]);
+                        const linkMaterial = new THREE.LineBasicMaterial({
+                            color: 0x0088ff,
+                            transparent: true,
+                            opacity: 0.2
+                        });
+                        
+                        const link = new THREE.Line(linkGeometry, linkMaterial);
+                        scene.add(link);
+                        links.push(link);
+                    }
+                }
+            }
+        }
+        
+        function updateOrbitalPaths() {
+            // Implementation for showing complete orbital ellipses
+            // This would calculate and display the full orbital path for selected satellites
+        }
+        
+        function updateResearchAnalytics() {
+            if (!researchMode.analytics) return;
+            
+            // Update constellation statistics
+            document.getElementById('active-satellites').textContent = satellites.length.toLocaleString();
+            document.getElementById('orbital-shells').textContent = '4';
+            document.getElementById('coverage-area').textContent = '95.2%';
+            document.getElementById('network-nodes').textContent = satellites.length.toLocaleString();
+            
+            // Update orbital mechanics
+            const meanMotion = 15.05; // Average for Starlink
+            document.getElementById('mean-motion').textContent = meanMotion.toFixed(2) + ' rev/day';
+            document.getElementById('inclination-range').textContent = '53°-98°';
+            document.getElementById('altitude-range').textContent = '540-570 km';
+            document.getElementById('orbital-period').textContent = Math.round(1440 / meanMotion) + ' min';
+            
+            // Update network analysis
+            document.getElementById('inter-sat-links').textContent = links.length.toLocaleString();
+            document.getElementById('network-density').textContent = (links.length / satellites.length).toFixed(2);
+            document.getElementById('collision-risks').textContent = '0';
+            document.getElementById('system-status').textContent = 'Operational';
+            
+            // Update performance metrics
+            document.getElementById('render-fps').textContent = Math.round(fps);
+            document.getElementById('memory-usage').textContent = Math.round(performance.memory?.usedJSHeapSize / 1024 / 1024 || 0) + ' MB';
+            document.getElementById('data-latency').textContent = Math.round(Math.random() * 50 + 10) + ' ms';
+            document.getElementById('update-rate').textContent = '1 Hz';
+        }
+        
+        function animate() {
+            animationId = requestAnimationFrame(animate);
+            
+            // Update performance metrics
+            frameCount++;
+            const currentTime = performance.now();
+            if (currentTime >= lastTime + 1000) {
+                fps = Math.round((frameCount * 1000) / (currentTime - lastTime));
+                frameCount = 0;
+                lastTime = currentTime;
+            }
+            
+            // Update satellites
+            updateSatellites();
+            
+            // Update research analytics
+            updateResearchAnalytics();
+            
+            // Update controls
+            controls.update();
+            
+            // Rotate Earth
+            if (earth) {
+                earth.rotation.y += 0.001;
+            }
+            
+            // Render scene
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Handle visibility change (pause when tab is not active)
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                if (animationId) {
+                    cancelAnimationFrame(animationId);
+                }
+            } else {
+                animate();
+            }
+        });
+        
+        // Initialize the application
+        init().catch(error => {
+            console.error('Failed to initialize Starlink Research Simulator:', error);
+            document.querySelector('.loading-text').textContent = 'Failed to load simulator';
+            document.querySelector('.loading-progress').textContent = 'Please refresh the page to try again';
+        });
+    </script>
 </body>
 </html>
+

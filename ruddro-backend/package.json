@@ -1,94 +1,28 @@
-const express = require('express');
-const fetch = require('node-fetch');
-const { execSync } = require('child_process');
-const satellite = require('satellite.js');
-
-const app = express();
-const port = 3000;
-
-app.use(express.static('public'));
-
-// Helper to fetch and parse TLE data
-async function fetchTLE(url) {
-  const res = await fetch(url);
-  const text = await res.text();
-  return text
-    .trim()
-    .split('\n')
-    .reduce((acc, line, idx) => {
-      if (idx % 3 === 0) acc.push([]);
-      acc[acc.length - 1].push(line);
-      return acc;
-    }, [])
-    .filter((group) => group.length === 3);
+{
+  "name": "starlink-simulator",
+  "version": "1.0.0",
+  "description": "Real-time Starlink constellation simulator with orbital mechanics",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "node-fetch": "^2.7.0",
+    "satellite.js": "^4.1.3"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "keywords": [
+    "starlink",
+    "satellite",
+    "orbital-mechanics",
+    "real-time",
+    "space"
+  ],
+  "author": "Ruddro Roy",
+  "license": "MIT"
 }
-
-// Common handler used for both routes
-async function getPositions(req, res) {
-  try {
-    const tle = await fetchTLE(
-      'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle'
-    );
-    const now = new Date();
-
-    const satellites = [];
-    const sats = [];
-
-    tle.forEach((t) => {
-      const satrec = satellite.twoline2satrec(t[1], t[2]);
-      const posVel = satellite.propagate(satrec, now);
-      if (!posVel.position) return;
-
-      // Convert to ECF for 3D coordinates
-      const gmst = satellite.gstime(now);
-      const ecf = satellite.eciToEcf(posVel.position, gmst);
-
-      // Convert to geodetic (lat/lon/alt) for the frontend
-      const geo = satellite.eciToGeodetic(posVel.position, gmst);
-      const lat = satellite.degreesLat(geo.latitude);
-      const lon = satellite.degreesLong(geo.longitude);
-      const height = geo.height; // kilometres
-
-      // Speed and period (optional)
-      const velVec = posVel.velocity;
-      const speed = Math.sqrt(
-        velVec.x * velVec.x + velVec.y * velVec.y + velVec.z * velVec.z
-      );
-      const meanMotion = satrec.no * (2 * Math.PI / 86400);
-      const semiMajor = Math.pow(398600.4418 / (meanMotion * meanMotion), 1 / 3);
-      const period = (2 * Math.PI * Math.sqrt(Math.pow(semiMajor, 3) / 398600.4418)) / 60;
-
-      // For other features that need Cartesian coords
-      sats.push({
-        id: t[0].trim(),
-        x: ecf.x,
-        y: ecf.y,
-        z: ecf.z,
-        vel: speed,
-        alt: height,
-        satrec,
-        period,
-      });
-
-      // For the Three.js frontend
-      satellites.push({ lat, lon, alt: height });
-    });
-
-    res.json({
-      satellites,
-      timestamp: Date.now(),
-      sats, // you can omit this if not needed
-    });
-  } catch (err) {
-    console.error('/api/starlink/positions error:', err);
-    res.status(500).json({ error: 'Failed to compute positions', details: err.message });
-  }
-}
-
-// Expose the handler on both routes to preserve backward compatibility
-app.get('/positions', getPositions);
-app.get('/api/starlink/positions', getPositions);
-
-app.listen(port, () => {
-  console.log(`Backend running at http://localhost:${port}`);
-});

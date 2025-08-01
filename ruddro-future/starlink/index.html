@@ -3,69 +3,159 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Starlink Constellation Simulator - Real-time 3D visualization of 8,000+ Starlink satellites by Ruddro Roy.">
     <title>Starlink Constellation Simulator - Ruddro Roy</title>
+    <link rel="icon" href="https://ruddro.com/favicon.ico" type="image/x-icon">  <!-- Custom favicon to override defaults -->
+    <script>
+        // Redirect .html to clean URL
+        if (window.location.pathname.includes('.html')) {
+            window.location.replace(window.location.pathname.replace('.html', ''));
+        }
+    </script>
     <style>
-        body {
-            margin: 0;
-            padding: 20px;
-            background: #0a0a0f;
-            color: #00ff88;
-            font-family: 'JetBrains Mono', monospace;
-            text-align: center;
-        }
-        
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        
-        h1 {
-            font-size: 2.5rem;
-            margin-bottom: 20px;
-        }
-        
-        p {
-            font-size: 1.2rem;
-            margin-bottom: 30px;
-            line-height: 1.6;
-        }
-        
-        .link {
-            display: inline-block;
-            background: linear-gradient(45deg, #00ff88, #0066ff);
-            color: #000;
-            padding: 15px 30px;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 600;
-            margin: 10px;
-            transition: transform 0.3s ease;
-        }
-        
-        .link:hover {
-            transform: scale(1.05);
-        }
-        
-        .back-link {
-            background: rgba(0, 255, 136, 0.1);
-            border: 1px solid #00ff88;
-            color: #00ff88;
-        }
-        
-        .back-link:hover {
-            background: #00ff88;
-            color: #000;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'JetBrains Mono', monospace; background: #0a0a0f; color: #ffffff; overflow: hidden; }
+        #renderer { width: 100vw; height: 100vh; }
+        #info { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.5); padding: 8px; font-size: 14px; }
+        #back { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0, 255, 136, 0.1); border: 1px solid #00ff88; color: #00ff88; padding: 10px 20px; border-radius: 8px; text-decoration: none; transition: all 0.3s; }
+        #back:hover { background: #00ff88; color: #000; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Starlink Constellation Simulator</h1>
-        <p>Real-time 3D visualization of 8,000+ Starlink satellites using SGP4 orbital mechanics, Three.js rendering, and live TLE data from Celestrak.</p>
-        <p>This project demonstrates mastery of orbital physics, big data processing, and interactive 3D graphics.</p>
-        
-        <a href="https://starlink.ruddro.com" class="link" target="_blank">Launch Simulator</a>
-        <a href="index.html" class="link back-link">← Back to Portfolio</a>
-    </div>
+    <div id="renderer"></div>
+    <div id="info">Starlink Sats: 0 | Avg Vel: 0 km/s | Hover for details</div>
+    <a id="back" href="/">← Back to Portfolio</a>
+
+    <script src="https://unpkg.com/satellite.js"></script>
+    <script src="https://threejs.org/build/three.js"></script>
+    <script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        // Constants: Physics-based (WGS84 Earth radius km, GM mu km^3/s^2)
+        const EARTH_RADIUS = 6371;
+        const SCALE = 0.0001;  // km to units, optimized for float precision
+        const TLE_URL = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle';
+
+        // Scene setup: Perspective for depth, WebGL antialias
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('renderer').appendChild(renderer.domElement);
+
+        // Controls: Interactive orbit (damping for smooth physics feel)
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // Earth: Textured sphere with Phong for realistic lighting (specular on oceans)
+        const loader = new THREE.TextureLoader();
+        const earth = new THREE.Mesh(
+            new THREE.SphereGeometry(EARTH_RADIUS * SCALE, 64, 64),
+            new THREE.MeshPhongMaterial({
+                map: loader.load('https://threejs.org/examples/textures/land_ocean_ice_cloud_2048.jpg'),
+                normalMap: loader.load('https://threejs.org/examples/textures/earth_normal_2048.jpg'),
+                shininess: 10
+            })
+        );
+        scene.add(earth);
+
+        // Lights: Ambient + sun point (position approx solar dir)
+        scene.add(new THREE.AmbientLight(0x404040));
+        const sunLight = new THREE.PointLight(0xffffff, 1.5);
+        sunLight.position.set(10000 * SCALE, 0, 0);
+        scene.add(sunLight);
+
+        // Satellites: Instanced mesh for perf (O(1) draw calls on 8000+)
+        const satGeometry = new THREE.SphereGeometry(5 * SCALE, 8, 8);
+        const satMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const satsInstanced = new THREE.InstancedMesh(satGeometry, satMaterial, 10000);
+        scene.add(satsInstanced);
+        const dummy = new THREE.Object3D();
+
+        // Raycaster for hover interaction
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let satData = [];  // Will hold {id, x, y, z, vel, alt}
+
+        camera.position.z = EARTH_RADIUS * SCALE * 1.5;
+
+        let tleCache = [];  // [ [name, l1, l2], ... ]
+        let lastFetch = 0;
+
+        // Fetch TLE: Public Celestrak, parse into groups
+        async function fetchStarlinkTLE() {
+            if (Date.now() - lastFetch < 1800000) return tleCache;  // Cache 30min
+            const res = await fetch(TLE_URL);
+            const text = await res.text();
+            tleCache = text.trim().split('\n').reduce((acc, line, i) => {
+                if (i % 3 === 0) acc.push([]);
+                acc[acc.length - 1].push(line);
+                return acc;
+            }, []).filter(group => group.length === 3);
+            lastFetch = Date.now();
+            console.log(`Fetched ${tleCache.length} Starlink TLEs`);  // ~8000+
+            return tleCache;
+        }
+
+        // Update positions: Propagate real-time with SGP4 (perturbed orbital mechanics)
+        async function updatePositions() {
+            const tles = await fetchStarlinkTLE();
+            const now = new Date();
+            let totalVel = 0;
+            let validCount = 0;
+            satData = [];
+            tles.forEach((tle, i) => {
+                const satrec = satellite.twoline2satrec(tle[1], tle[2]);
+                const posVel = satellite.propagate(satrec, now);
+                if (!posVel.position) return;  // Skip invalid
+                const gmst = satellite.gstime(now);
+                const ecf = satellite.eciToEcf(posVel.position, gmst);
+                const vel = Math.sqrt(posVel.velocity.x**2 + posVel.velocity.y**2 + posVel.velocity.z**2);
+                const alt = Math.sqrt(ecf.x**2 + ecf.y**2 + ecf.z**2) - EARTH_RADIUS;  // km
+                satData.push({ id: tle[0].trim(), x: ecf.x, y: ecf.y, z: ecf.z, vel, alt });
+                dummy.position.set(ecf.x * SCALE, ecf.y * SCALE, ecf.z * SCALE);
+                dummy.updateMatrix();
+                satsInstanced.setMatrixAt(i, dummy.matrix);
+                totalVel += vel;
+                validCount++;
+            });
+            satsInstanced.instanceMatrix.needsUpdate = true;
+            satsInstanced.count = validCount;
+            const avgVel = (totalVel / validCount).toFixed(2);
+            document.getElementById('info').textContent = `Starlink Sats: ${validCount} | Avg Vel: ${avgVel} km/s | Hover for details`;
+        }
+
+        // Animation loop: Render + controls
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Hover: Raycast to instance, show physics stats (vel sqrt(v·v), alt ||r|| - R_e)
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(satsInstanced);
+            if (intersects.length) {
+                const idx = intersects[0].instanceId;
+                const data = satData[idx];
+                document.getElementById('info').textContent = `${data.id} | Vel: ${data.vel.toFixed(2)} km/s | Alt: ${data.alt.toFixed(0)} km | Pos: (${data.x.toFixed(0)}, ${data.y.toFixed(0)}, ${data.z.toFixed(0)}) km`;
+            }
+        });
+
+        // Init: Fetch/update positions, interval for real-time (every 5s; orbits ~90min, v~7.6 km/s)
+        updatePositions();
+        setInterval(updatePositions, 5000);
+        animate();
+
+        // Resize handler
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
 </body>
 </html>

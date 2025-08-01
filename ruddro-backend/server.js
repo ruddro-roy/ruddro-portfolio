@@ -171,3 +171,7 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`📡 Tracking ${constellation.length} satellites`);
     console.log(`🌍 Real-time orbital mechanics with SGP4-inspired calculations`);
 });
+// Keep service awake to prevent loading screen
+setInterval(() => {
+    console.log('🛰️ Starlink service staying awake');
+}, 14 * 60 * 1000); // Ping every 14 minutes

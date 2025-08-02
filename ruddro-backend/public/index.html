@@ -1,183 +1,45 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Favicon -->
-<link rel="apple-touch-icon" sizes="180x180" href="/favicon_io/apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon_io/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/favicon_io/favicon-16x16.png">
-<link rel="manifest" href="/favicon_io/site.webmanifest">
-<link rel="icon" href="/favicon_io/favicon.ico">
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Industry-Grade Starlink Constellation Simulator</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/satellite.js/4.1.3/satellite.min.js"></script>
-    <script src="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Cesium.js"></script>
-    <link href="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
-    <style>
-        html, body, #cesiumContainer { height: 100%; margin: 0; padding: 0; overflow: hidden; }
-        #ui-panel { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 10px; color: white; font-family: monospace; z-index: 1; }
-        #ui-panel button { margin: 5px; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Starlink Satellite Tracker</title>
+  <!-- CesiumJS CSS (for default widgets, if any) -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.132.0/Widgets/widgets.css" rel="stylesheet" />
+  <!-- Custom app styles -->
+  <link href="style.css" rel="stylesheet" />
 </head>
-<body>
-    <div id="cesiumContainer"></div>
-    <div id="ui-panel">
-        <p>Starlink Simulator: <span id="sat-count">0</span> Sats</p>
-        <button onclick="toggleLabels()">Toggle Labels</button>
-        <button onclick="toggleAnimation()">Toggle Animation</button>
-        <button onclick="zoomToGlobe()">Zoom to Globe</button>
+<body class="dark"> <!-- default to dark theme -->
+  <!-- Sidebar panel for controls and info -->
+  <div id="sidebar">
+    <h1>Starlink Tracker</h1>
+    <!-- Search input with datalist for suggestions -->
+    <input id="searchBox" type="search" list="satList" placeholder="Search satellite..." />
+    <datalist id="satList"></datalist>
+
+    <!-- Info panel showing details of selected satellite -->
+    <div id="infoPanel">
+      <p>Select a satellite to see details.</p> <!-- default text -->
     </div>
 
-    <script>
-        // Constants for simulation (industry-grade: configurable timestep, duration for precomputation)
-        const TLE_URL = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle';
-        const MAX_SATS = 500;  // Limit for perf; set to Infinity for all (~6k, may lag)
-        const TOTAL_SECONDS = 60 * 60 * 6;  // 6 hours animation loop
-        const TIMESTEP_SECONDS = 30;  // Sample every 30s for smooth interp without overload
-        const SHOW_LABELS = true;  // Initial state
+    <!-- Buttons for extra controls -->
+    <div id="controls">
+      <button id="toggleThemeBtn">Toggle Dark/Light</button>
+      <button id="exportBtn">Export Visible CSV</button>
+    </div>
+  </div>
 
-        // Initialize Cesium Viewer with optimized settings
-        const viewer = new Cesium.Viewer('cesiumContainer', {
-            imageryProvider: new Cesium.TileMapServiceImageryProvider({
-                url: Cesium.buildModuleUrl("Assets/Textures/NaturalEarthII"),
-            }),
-            baseLayerPicker: false,
-            geocoder: false,
-            homeButton: false,
-            infoBox: false,
-            navigationHelpButton: false,
-            sceneModePicker: false,
-            animation: false,  // Disable default animation widget
-            timeline: false    // Disable timeline for custom control
-        });
-        viewer.scene.globe.enableLighting = true;
+  <!-- Globe container for Cesium -->
+  <div id="cesiumContainer"></div>
 
-        // Set clock for real-time animation (loop over period)
-        const start = Cesium.JulianDate.now();
-        const stop = Cesium.JulianDate.addSeconds(start, TOTAL_SECONDS, new Cesium.JulianDate());
-        viewer.clock.startTime = start.clone();
-        viewer.clock.stopTime = stop.clone();
-        viewer.clock.currentTime = start.clone();
-        viewer.clock.clockRange = Cesium.ClockRange.LOOP_STOP;
-        viewer.clock.multiplier = 60;  // Speed up time (1 min real = 1 hour sim)
-        viewer.clock.shouldAnimate = true;
+  <!-- Panel toggle button (visible on mobile to show/hide sidebar) -->
+  <button id="togglePanelBtn">☰</button>
 
-        // Global arrays for satellites
-        let satEntities = [];
-        let satrecs = [];
-        let labelsVisible = SHOW_LABELS;
-        let animationRunning = true;
-
-        // Fetch and parse TLE data (robust error handling)
-        async function loadStarlinkTLE() {
-            try {
-                const response = await fetch(TLE_URL);
-                if (!response.ok) throw new Error('Failed to fetch TLE data');
-                const tleText = await response.text();
-                const lines = tleText.trim().split('\n');
-                const tleData = [];
-                for (let i = 0; i < lines.length; i += 3) {
-                    if (i + 2 < lines.length) {
-                        tleData.push({
-                            name: lines[i].trim(),
-                            line1: lines[i + 1].trim(),
-                            line2: lines[i + 2].trim()
-                        });
-                    }
-                }
-                return tleData.slice(0, MAX_SATS);  // Subsample for perf
-            } catch (error) {
-                console.error('TLE Load Error:', error);
-                alert('Error loading Starlink data. Check console.');
-                return [];
-            }
-        }
-
-        // Initialize satellites: Precompute sampled positions for efficient animation
-        async function initSatellites() {
-            const tleData = await loadStarlinkTLE();
-            document.getElementById('sat-count').textContent = tleData.length;
-            tleData.forEach((tle, index) => {
-                try {
-                    const satrec = satellite.twoline2satrec(tle.line1, tle.line2);
-                    satrecs.push(satrec);
-                    const positionsOverTime = new Cesium.SampledPositionProperty();
-                    positionsOverTime.setInterpolationOptions({
-                        interpolationDegree: 5,
-                        interpolationAlgorithm: Cesium.LagrangePolynomialApproximation
-                    });
-
-                    // Pre-sample positions over the animation period
-                    for (let j = 0; j <= TOTAL_SECONDS; j += TIMESTEP_SECONDS) {
-                        const time = Cesium.JulianDate.addSeconds(start, j, new Cesium.JulianDate());
-                        const jsDate = Cesium.JulianDate.toDate(time);
-                        const posVel = satellite.propagate(satrec, jsDate);
-                        if (posVel.position) {
-                            const gmst = satellite.gstime(jsDate);
-                            const geodetic = satellite.eciToGeodetic(posVel.position, gmst);
-                            const position = Cesium.Cartesian3.fromRadians(
-                                geodetic.longitude,
-                                geodetic.latitude,
-                                geodetic.height * 1000  // m
-                            );
-                            positionsOverTime.addSample(time, position);
-                        }
-                    }
-
-                    // Add entity with point and optional label
-                    const entity = viewer.entities.add({
-                        availability: new Cesium.TimeIntervalCollection([new Cesium.TimeInterval({ start, stop })]),
-                        position: positionsOverTime,
-                        point: {
-                            pixelSize: 4,
-                            color: Cesium.Color.CYAN,
-                            outlineColor: Cesium.Color.BLACK,
-                            outlineWidth: 1
-                        },
-                        label: {
-                            text: tle.name,
-                            font: '10px monospace',
-                            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                            outlineWidth: 2,
-                            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-                            pixelOffset: new Cesium.Cartesian2(0, -9),
-                            show: labelsVisible
-                        }
-                    });
-                    satEntities.push(entity);
-                } catch (error) {
-                    console.error(`Error processing sat ${tle.name}:`, error);
-                }
-            });
-
-            // Zoom to global view
-            zoomToGlobe();
-        }
-
-        // UI Functions
-        function toggleLabels() {
-            labelsVisible = !labelsVisible;
-            satEntities.forEach(entity => { if (entity.label) entity.label.show = labelsVisible; });
-        }
-
-        function toggleAnimation() {
-            animationRunning = !animationRunning;
-            viewer.clock.shouldAnimate = animationRunning;
-        }
-
-        function zoomToGlobe() {
-            viewer.camera.flyTo({
-                destination: Cesium.Cartesian3.fromDegrees(0, 0, 20000000),  // High altitude view
-                orientation: {
-                    heading: Cesium.Math.toRadians(0),
-                    pitch: Cesium.Math.toRadians(-90),
-                    roll: 0
-                }
-            });
-        }
-
-        // Start the simulator
-        initSatellites();
-    </script>
+  <!-- CesiumJS library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.132.0/Cesium.js"></script>
+  <!-- Satellite.js library for SGP4 calculations -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/satellite.js/4.0.0/satellite.min.js"></script>
+  <!-- Application script -->
+  <script src="app.js"></script>
 </body>
 </html>

@@ -1,4 +1,5 @@
 name: deploy-static
+
 on:
   push:
     branches: [main]
@@ -6,16 +7,20 @@ on:
 jobs:
   gh-pages:
     runs-on: ubuntu-latest
+
     steps:
+      # 1 checkout repo
       - uses: actions/checkout@v4
 
-      # 1️⃣ patch the right file
-      - run: |
+      # 2 inject Cesium token into the correct file
+      - name: Patch Cesium token
+        run: |
           sed -i "s/PASTE_YOUR_CESIUM_ION_TOKEN_HERE/${{ secrets.CESIUM_ION_TOKEN }}/" \
               ruddro-backend/public/app.js
 
-      - uses: peaceiris/actions-gh-pages@v4
+      # 3 deploy ruddro-backend/public to gh-pages
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          # 2️⃣ publish the correct folder
           publish_dir: ./ruddro-backend/public

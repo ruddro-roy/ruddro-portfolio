@@ -1,4 +1,4 @@
-/* Global styles and CSS variable definitions for theming */
+/* Global styles and theming */
 body {
   margin: 0;
   padding: 0;
@@ -8,7 +8,7 @@ body {
   --text-color: #f0f0f0;
   --panel-bg: #2a2a2a;
   --panel-text: #ffffff;
-  --accent-color: #4db6ac; /* e.g., teal accent for highlights */
+  --accent-color: #4db6ac;
 }
 body.light {
   --bg-color: #ffffff;
@@ -17,7 +17,6 @@ body.light {
   --panel-text: #000000;
   --accent-color: #007c91;
 }
-
 /* Apply theme colors */
 body {
   background-color: var(--bg-color);
@@ -32,65 +31,74 @@ button, input {
   font: inherit;
 }
 
-/* Layout: flex container with sidebar and map */
+/* Layout: sidebar and map */
 #sidebar {
   width: 300px;
   padding: 10px;
   box-sizing: border-box;
-  /* sidebar will scroll if content exceeds height */
   max-height: 100vh;
   overflow-y: auto;
 }
 #cesiumContainer {
   flex: 1;
-  /* ensure Cesium canvas covers full area */
   width: 100%;
   height: 100%;
 }
-
-/* Use flex layout for main body: sidebar + map side by side on large screens */
-body, html {
+/* Use flex layout for body: sidebar + map side by side */
+html, body {
   height: 100%;
-}
-body > #sidebar, body > #cesiumContainer {
-  /* direct children of body, arranged in flex row */
-  display: inline-block;
-  vertical-align: top;
 }
 body {
   display: flex;
   flex-direction: row;
 }
+body > #sidebar, body > #cesiumContainer {
+  display: inline-block;
+  vertical-align: top;
+}
 
-/* Header in sidebar */
+/* Sidebar content styling */
 #sidebar h1 {
   font-size: 1.2em;
-  margin: 0 0 0.5em 0;
+  margin: 0 0 0.5em;
 }
-/* Search box styling */
 #searchBox {
   width: 100%;
   padding: 5px;
   margin-bottom: 0.5em;
   box-sizing: border-box;
 }
-/* Info panel styling */
+/* Info panel (selected satellite details) */
 #infoPanel {
   font-size: 0.9em;
   background: rgba(0,0,0,0.1);
   padding: 5px;
   margin-bottom: 0.5em;
   border-radius: 4px;
-  white-space: pre-line; /* preserve line breaks for TLE text */
+  white-space: pre-line;
 }
 #infoPanel h3 {
   margin: 0.2em 0;
 }
+
+/* Overhead info panel */
+#overheadPanel {
+  font-size: 0.9em;
+  background: rgba(0,0,0,0.1);
+  padding: 5px;
+  margin-bottom: 0.5em;
+  border-radius: 4px;
+  display: none;  /* shown only when location is available */
+}
+#overheadPanel p {
+  margin: 0.2em 0;
+}
+
 /* Control buttons container */
 #controls {
   display: flex;
-  gap: 5px;
   flex-wrap: wrap;
+  gap: 5px;
 }
 #controls button {
   flex: 1 1 auto;
@@ -104,12 +112,13 @@ body {
 #controls button:hover {
   opacity: 0.8;
 }
-/* Panel toggle (hamburger) button for mobile */
+
+/* Mobile hamburger button */
 #togglePanelBtn {
   position: absolute;
   top: 10px;
   left: 10px;
-  z-index: 100;
+  z-index: 300;  /* Raised above sidebar (was 100) so it stays visible when sidebar is open */
   padding: 8px;
   font-size: 1.2em;
   background: var(--panel-bg);
@@ -117,31 +126,30 @@ body {
   border: none;
   border-radius: 3px;
   cursor: pointer;
-  display: none; /* hidden on desktop by default */
+  display: none; /* shown via media query */
 }
 
 /* Responsive behavior for mobile screens */
 @media (max-width: 600px) {
-  /* On small screens, hide sidebar by default and overlay it when shown */
   #sidebar {
     position: absolute;
     left: 0;
     top: 0;
     bottom: 0;
     z-index: 200;
-    transform: translateX(-100%); /* hidden off-screen initially */
+    transform: translateX(-100%);
     transition: transform 0.3s ease;
     max-height: none;
-    width: 80%; /* sidebar covers 80% width on mobile */
+    width: 80%;
   }
   #sidebar.show {
-    transform: translateX(0); /* slide in */
+    transform: translateX(0);
   }
-  /* Show the hamburger toggle button on mobile */
+  /* Show hamburger on mobile */
   #togglePanelBtn {
     display: block;
   }
-  /* The map container should always fill the screen */
+  /* Map always fills screen underneath */
   #cesiumContainer {
     width: 100%;
     height: 100%;

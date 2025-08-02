@@ -1,5 +1,4 @@
 name: deploy-static
-
 on:
   push:
     branches: [main]
@@ -7,18 +6,17 @@ on:
 jobs:
   gh-pages:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write        # allow git push by the workflow
 
     steps:
-      # 1 checkout repo
       - uses: actions/checkout@v4
 
-      # 2 inject Cesium token into the correct file
       - name: Patch Cesium token
         run: |
           sed -i "s/PASTE_YOUR_CESIUM_ION_TOKEN_HERE/${{ secrets.CESIUM_ION_TOKEN }}/" \
               ruddro-backend/public/app.js
 
-      # 3 deploy ruddro-backend/public to gh-pages
       - name: Publish to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:

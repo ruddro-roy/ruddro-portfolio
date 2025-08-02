@@ -4,12 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Starlink Satellite Tracker</title>
-  <!-- CesiumJS CSS (for default widgets, if any) -->
+  <!-- CesiumJS default CSS -->
   <link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.132.0/Widgets/widgets.css" rel="stylesheet" />
   <!-- Custom app styles -->
   <link href="style.css" rel="stylesheet" />
 </head>
-<body class="dark"> <!-- default to dark theme -->
+<body class="dark">
   <!-- Sidebar panel for controls and info -->
   <div id="sidebar">
     <h1>Starlink Tracker</h1>
@@ -19,13 +19,17 @@
 
     <!-- Info panel showing details of selected satellite -->
     <div id="infoPanel">
-      <p>Select a satellite to see details.</p> <!-- default text -->
+      <p>Select a satellite to see details.</p>
     </div>
+
+    <!-- Overhead satellite info panel (shown if location is enabled) -->
+    <div id="overheadPanel"></div>
 
     <!-- Buttons for extra controls -->
     <div id="controls">
       <button id="toggleThemeBtn">Toggle Dark/Light</button>
       <button id="exportBtn">Export Visible CSV</button>
+      <button id="resetViewBtn">Reset View</button>  <!-- New reset view button -->
     </div>
   </div>
 

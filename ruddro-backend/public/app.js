@@ -28,8 +28,24 @@ const ORBIT_PROPAGATION_STEP_SECONDS = 60;
 const ORBIT_DURATION_PERIODS = 2; // Calculate orbit for 2 full periods.
 
 // --- CesiumJS Viewer Initialization ---
-// Requesting a specific version for stability.
-Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI5ZjExZWY4Zi0yM2U5LTQ5MGEtOWRkNi00M2JjNmNkYTFjYjQiLCJpZCI6ODU3NzgsImlhdCI6MTY0NzQ2MTEyMX0.R2e-Z2e8x-1gJp5j2v5zSVYm9w55K5J5Oes2aM3bYtU';
+
+// =================================================================================
+// CRITICAL SECURITY FIX & INSTRUCTIONS
+// =================================================================================
+// The previous access token was exposed on GitHub and has been revoked.
+// NEVER commit access tokens directly into your code.
+//
+// TO MAKE THE APP WORK:
+// 1. Go to https://cesium.com/ion/signup/ to create a free Cesium Ion account.
+// 2. Go to the "Access Tokens" page on your Cesium Ion dashboard.
+// 3. Copy the "Default" access token provided.
+// 4. Paste your token into the line below.
+//
+// For a real production deployment, this token should be loaded from a secure
+// environment variable, not hardcoded in the source file.
+// =================================================================================
+Cesium.Ion.defaultAccessToken = 'PASTE_YOUR_CESIUM_ION_TOKEN_HERE';
+
 
 const viewer = new Cesium.Viewer("cesiumContainer", {
     // Use high-quality Bing Maps Aerial imagery.
@@ -50,6 +66,12 @@ viewer.scene.maximumRenderTimeChange = Infinity;
 
 // --- Main Application Flow ---
 document.addEventListener('DOMContentLoaded', () => {
+    // Check if the user has replaced the placeholder token.
+    if (Cesium.Ion.defaultAccessToken === 'PASTE_YOUR_CESIUM_ION_TOKEN_HERE') {
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        loadingIndicator.innerHTML = `<p style="color:yellow; text-align:center;">Configuration Needed!<br>Please add your Cesium Ion Access Token in app.js to load the globe.</p>`;
+        return;
+    }
     initUI();
     loadAndInitializeSatellites();
 });
@@ -88,7 +110,10 @@ async function loadAndInitializeSatellites() {
         console.error("Fatal error during satellite initialization:", error);
         loadingIndicator.innerHTML = `<p style="color:red;">Error loading satellite data.<br>Please refresh the page.</p>`;
     } finally {
-        loadingIndicator.style.display = 'none';
+        // Only hide the indicator if there wasn't a token error.
+        if (loadingIndicator.style.display !== 'none' && !loadingIndicator.innerHTML.includes('Configuration Needed')) {
+            loadingIndicator.style.display = 'none';
+        }
     }
 }
 

@@ -1,49 +1,65 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Starlink Satellite Tracker</title>
-  <!-- CesiumJS default CSS -->
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.132.0/Widgets/widgets.css" rel="stylesheet" />
-  <!-- Custom app styles -->
-  <link href="style.css" rel="stylesheet" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Enterprise Satellite Tracking Platform</title>
+    <!-- CesiumJS CSS -->
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <!-- Custom Styles -->
+    <link href="style.css" rel="stylesheet" />
+    <!-- Google Fonts for a professional look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Inconsolata:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body class="dark">
-  <!-- Sidebar panel for controls and info -->
-  <div id="sidebar">
-    <h1>Starlink Tracker</h1>
-    <!-- Search input with datalist for suggestions -->
-    <input id="searchBox" type="search" list="satList" placeholder="Search satellite..." />
-    <datalist id="satList"></datalist>
+    <!-- Main Globe Container -->
+    <div id="cesiumContainer"></div>
 
-    <!-- Info panel showing details of selected satellite -->
-    <div id="infoPanel">
-      <p>Select a satellite to see details.</p>
+    <!-- Sidebar for Controls and Information -->
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <h1>Mission Control</h1>
+            <p>Real-time Situational Awareness</p>
+        </div>
+        
+        <div class="sidebar-content">
+            <!-- Search Functionality -->
+            <div class="control-group">
+                <label for="searchBox">SATELLITE SEARCH</label>
+                <input id="searchBox" type="search" list="satList" placeholder="Enter satellite name..." />
+                <datalist id="satList"></datalist>
+            </div>
+
+            <!-- Information Panel for Selected Satellite -->
+            <div id="infoPanel">
+                <div class="placeholder-text">
+                    <p>No satellite selected.</p>
+                    <span>Select a satellite from the globe or search to view detailed telemetry and orbital data.</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar-footer">
+             <button id="toggleThemeBtn" title="Toggle Dark/Light Theme">Toggle Theme</button>
+             <button id="resetViewBtn" title="Reset Camera View">Reset View</button>
+        </div>
     </div>
 
-    <!-- Overhead satellite info panel (shown if location is enabled) -->
-    <div id="overheadPanel"></div>
+    <!-- Mobile Sidebar Toggle -->
+    <button id="togglePanelBtn">☰</button>
 
-    <!-- Buttons for extra controls -->
-    <div id="controls">
-      <button id="toggleThemeBtn">Toggle Dark/Light</button>
-      <button id="exportBtn">Export Visible CSV</button>
-      <button id="resetViewBtn">Reset View</button>  <!-- New reset view button -->
+    <!-- Loading Indicator -->
+    <div id="loadingIndicator">
+        <div class="spinner"></div>
+        <p>Loading orbital data...</p>
     </div>
-  </div>
 
-  <!-- Globe container for Cesium -->
-  <div id="cesiumContainer"></div>
-
-  <!-- Panel toggle button (visible on mobile to show/hide sidebar) -->
-  <button id="togglePanelBtn">☰</button>
-
-  <!-- CesiumJS library -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.132.0/Cesium.js"></script>
-  <!-- Satellite.js library for SGP4 calculations -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/satellite.js/4.0.0/satellite.min.js"></script>
-  <!-- Application script -->
-  <script src="app.js"></script>
+    <!-- CesiumJS and Satellite.js libraries -->
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/satellite.js/4.1.4/satellite.min.js"></script>
+    <!-- Application Script -->
+    <script src="app.js"></script>
 </body>
 </html>

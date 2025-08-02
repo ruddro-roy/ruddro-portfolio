@@ -1,64 +1,264 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Mission Control – Real-Time Situational Awareness</title>
-
-  <!-- Cesium & satellite.js -->
-  <link  href="https://unpkg.com/cesium@latest/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
-  <script src="https://unpkg.com/cesium@latest/Build/Cesium/Cesium.js"></script>
-  <script src="https://unpkg.com/satellite.js@5/dist/satellite.min.js"></script>
-
-  <!-- Minimal styles -->
-  <style>
-    html,body,#cesiumContainer {margin:0;padding:0;width:100%;height:100%;background:#222;color:#ddd;font-family:system-ui;}
-    #sidebar {position:absolute;right:0;top:0;width:360px;max-width:90%;height:100%;background:#111;border-left:1px solid #333;overflow:auto;padding:1rem;transition:transform .3s ease;transform:translateX(0);}
-    #sidebar.hide          {transform:translateX(100%);}
-    .info-grid            {display:grid;grid-template-columns:1fr 1fr;gap:.2rem .8rem;}
-    .info-item>.label     {color:#888;font-size:.75rem;display:block;}
-    .placeholder-text     {text-align:center;color:#777;margin-top:2rem;}
-    #loadingIndicator     {position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;color:#ddd;}
-    .spinner              {width:36px;height:36px;border:4px solid #444;border-top-color:#aaa;border-radius:50%;margin:0 auto 1rem;animation:spin 1s linear infinite;}
-    @keyframes spin{to{transform:rotate(360deg);}}
-    #controlBar           {position:absolute;top:1rem;left:1rem;z-index:10;}
-    button                {margin:0 .25rem;padding:.25rem .5rem;background:#333;border:1px solid #555;color:#ddd;cursor:pointer;}
-    input,button          {font-family:inherit;font-size:.9rem;}
-    input[type="search"]  {width:100%;padding:.4rem;border:1px solid #555;background:#222;color:#ddd;}
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Starlink Mission Control | Real-Time Satellite Tracking</title>
+    
+    <!-- Cesium & satellite.js -->
+    <link href="https://unpkg.com/cesium@latest/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <script src="https://unpkg.com/cesium@latest/Build/Cesium/Cesium.js"></script>
+    <script src="https://unpkg.com/satellite.js@5/dist/satellite.min.js"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <link rel="stylesheet" href="style.css">
 </head>
-
-<body>
-  <div id="cesiumContainer"></div>
-
-  <!-- Basic control buttons -->
-  <div id="controlBar">
-    <button id="toggleThemeBtn">🌙/☀️</button>
-    <button id="resetViewBtn">Reset View</button>
-    <button id="togglePanelBtn">☰ Panel</button>
-  </div>
-
-  <!-- Sidebar -->
-  <aside id="sidebar">
-    <h1 style="color:#2f6bff;margin-top:0;">Mission Control</h1>
-    <p>Real-time Situational Awareness</p>
-
-    <h3>SATELLITE SEARCH</h3>
-    <input list="satList" id="searchBox" type="search" placeholder="Enter satellite name…">
-    <datalist id="satList"></datalist>
-
-    <div id="infoPanel" class="placeholder-text">
-      <p>No satellite selected.</p>
-      <span>Select one from the globe or search.</span>
+<body class="dark">
+    <!-- Main Container -->
+    <div class="app-container">
+        <!-- 3D Globe Container -->
+        <div id="cesiumContainer" class="globe-container">
+            <!-- Loading Overlay -->
+            <div id="loadingOverlay" class="loading-overlay">
+                <div class="loading-content">
+                    <div class="orbital-spinner">
+                        <div class="orbit"></div>
+                        <div class="satellite"></div>
+                    </div>
+                    <h2>Initializing Mission Control</h2>
+                    <p id="loadingStatus">Fetching orbital elements...</p>
+                    <div class="loading-progress">
+                        <div class="progress-bar" id="progressBar"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Top Control Bar -->
+            <div class="control-bar">
+                <div class="control-group">
+                    <button class="control-btn primary" id="resetViewBtn" title="Reset Camera View">
+                        <i class="fas fa-globe-americas"></i>
+                        <span>Reset View</span>
+                    </button>
+                    <button class="control-btn" id="toggleThemeBtn" title="Toggle Theme">
+                        <i class="fas fa-moon theme-icon"></i>
+                    </button>
+                </div>
+                
+                <div class="mission-title">
+                    <h1><i class="fas fa-satellite"></i> Mission Control</h1>
+                    <span class="subtitle">Real-Time Constellation Tracking</span>
+                </div>
+                
+                <div class="control-group">
+                    <button class="control-btn" id="fullscreenBtn" title="Toggle Fullscreen">
+                        <i class="fas fa-expand"></i>
+                    </button>
+                    <button class="control-btn mobile-only" id="togglePanelBtn" title="Toggle Panel">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Quick Stats Overlay -->
+            <div class="stats-overlay" id="statsOverlay">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalSatellites">-</div>
+                    <div class="stat-label">Total Satellites</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="visibleSatellites">-</div>
+                    <div class="stat-label">Visible Now</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="nextPassTime">-</div>
+                    <div class="stat-label">Next Pass</div>
+                </div>
+            </div>
+            
+            <!-- Location Status -->
+            <div class="location-status" id="locationStatus">
+                <i class="fas fa-location-dot"></i>
+                <span id="locationText">Getting location...</span>
+            </div>
+        </div>
+        
+        <!-- Sidebar Panel -->
+        <aside class="sidebar" id="sidebar">
+            <!-- Sidebar Header -->
+            <div class="sidebar-header">
+                <div class="header-content">
+                    <h2><i class="fas fa-rocket"></i> Satellite Control</h2>
+                    <p>Advanced Tracking Interface</p>
+                </div>
+                <button class="close-btn mobile-only" id="closePanelBtn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <!-- Search Section -->
+            <div class="sidebar-section">
+                <div class="section-header">
+                    <i class="fas fa-search"></i>
+                    <h3>Satellite Search</h3>
+                </div>
+                <div class="search-container">
+                    <input 
+                        type="search" 
+                        id="searchBox" 
+                        placeholder="Search by satellite name..." 
+                        list="satList"
+                        autocomplete="off"
+                    >
+                    <datalist id="satList"></datalist>
+                    <div class="search-suggestions" id="searchSuggestions"></div>
+                </div>
+            </div>
+            
+            <!-- Overhead Satellites -->
+            <div class="sidebar-section" id="overheadSection">
+                <div class="section-header">
+                    <i class="fas fa-eye"></i>
+                    <h3>Overhead Status</h3>
+                </div>
+                <div class="overhead-panel" id="overheadPanel">
+                    <div class="status-message">Enable location to see overhead satellites</div>
+                </div>
+            </div>
+            
+            <!-- Satellite Info Panel -->
+            <div class="sidebar-section" id="infoSection">
+                <div class="section-header">
+                    <i class="fas fa-info-circle"></i>
+                    <h3>Satellite Details</h3>
+                </div>
+                <div class="info-panel" id="infoPanel">
+                    <div class="placeholder-content">
+                        <div class="placeholder-icon">
+                            <i class="fas fa-satellite"></i>
+                        </div>
+                        <h4>No Satellite Selected</h4>
+                        <p>Click on a satellite or use the search to view detailed information</p>
+                        <div class="quick-tips">
+                            <div class="tip">
+                                <span class="color-indicator yellow"></span>
+                                <span>Default satellites</span>
+                            </div>
+                            <div class="tip">
+                                <span class="color-indicator green"></span>
+                                <span>Visible from your location</span>
+                            </div>
+                            <div class="tip">
+                                <span class="color-indicator red"></span>
+                                <span>Selected satellite</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Controls Section -->
+            <div class="sidebar-section">
+                <div class="section-header">
+                    <i class="fas fa-cogs"></i>
+                    <h3>Controls</h3>
+                </div>
+                <div class="controls-grid">
+                    <button class="action-btn secondary" id="exportBtn">
+                        <i class="fas fa-download"></i>
+                        <span>Export Visible</span>
+                    </button>
+                    <button class="action-btn secondary" id="shareBtn">
+                        <i class="fas fa-share"></i>
+                        <span>Share View</span>
+                    </button>
+                    <button class="action-btn secondary" id="screenshotBtn">
+                        <i class="fas fa-camera"></i>
+                        <span>Screenshot</span>
+                    </button>
+                    <button class="action-btn secondary" id="settingsBtn">
+                        <i class="fas fa-sliders-h"></i>
+                        <span>Settings</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="sidebar-footer">
+                <div class="footer-info">
+                    <p><i class="fas fa-clock"></i> <span id="currentTime">--:--:-- UTC</span></p>
+                    <p><i class="fas fa-database"></i> Data: <a href="https://celestrak.org" target="_blank">CelesTrak</a></p>
+                </div>
+            </div>
+        </aside>
     </div>
-  </aside>
-
-  <!-- Loading overlay -->
-  <div id="loadingIndicator">
-    <div class="spinner"></div>
-    <p>Loading orbital data…</p>
-  </div>
-
-  <!-- App logic -->
-  <script defer src="app.js"></script>
+    
+    <!-- Notification System -->
+    <div class="notification-container" id="notifications"></div>
+    
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3><i class="fas fa-cogs"></i> Display Settings</h3>
+                <button class="modal-close" id="closeSettingsBtn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-group">
+                    <label class="setting-label">
+                        <input type="checkbox" id="showOrbitsToggle" checked>
+                        <span class="checkmark"></span>
+                        Show orbital paths
+                    </label>
+                </div>
+                <div class="setting-group">
+                    <label class="setting-label">
+                        <input type="checkbox" id="showCoverageToggle" checked>
+                        <span class="checkmark"></span>
+                        Show coverage areas
+                    </label>
+                </div>
+                <div class="setting-group">
+                    <label class="setting-label">
+                        <input type="checkbox" id="enableSoundsToggle">
+                        <span class="checkmark"></span>
+                        Enable sound effects
+                    </label>
+                </div>
+                <div class="setting-group">
+                    <label class="setting-label">Update Rate</label>
+                    <select id="updateRateSelect">
+                        <option value="500">Real-time (0.5s)</option>
+                        <option value="1000" selected>Standard (1s)</option>
+                        <option value="2000">Conservative (2s)</option>
+                        <option value="5000">Minimal (5s)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Global configuration
+        window.STARLINK_CONFIG = {
+            TLE_URL: "https://celestrak.org/NORAD/elements/supplemental/sup-gp.php?FILE=starlink&FORMAT=tle",
+            UPDATE_INTERVAL: 1000,
+            VISIBILITY_UPDATE_INTERVAL: 5000,
+            SEARCH_DEBOUNCE: 300,
+            MAX_ORBITAL_POINTS: 150,
+            COVERAGE_OPACITY: 0.15
+        };
+        
+        // Initialize Cesium token (you'll need to add your own token)
+        // Cesium.Ion.defaultAccessToken = 'your_cesium_token_here';
+    </script>
+    <script src="app.js"></script>
 </body>
 </html>

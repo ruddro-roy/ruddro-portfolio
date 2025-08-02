@@ -17,6 +17,7 @@ let satellites = [];
 let satByName = {};
 let selectedSat = null;
 let coverageEntity = null;
+let selectedPath = null;
 let userLocation = null;
 let userMarker = null;
 let selectedMarker = null;  // marker for selected satellite (billboard icon)
@@ -120,11 +121,11 @@ function startSimulation() {
       if (sat === selectedSat) {
         updateSelectedInfo();
         if (coverageEntity) {
-          coverageEntity.position = newPos.clone();
+          coverageEntity.position = Cesium.Cartesian3.fromDegrees(sat.lon, sat.lat, 0);
           updateCoverageRadius(sat.alt);
         }
         if (selectedMarker) {
-          selectedMarker.position = newPos.clone();
+          selectedMarker.position = Cesium.Cartesian3.fromDegrees(sat.lon, sat.lat, sat.alt * 1000);
         }
       }
     });
@@ -291,6 +292,11 @@ function selectSatellite(satData) {
       viewer.entities.remove(selectedMarker);
       selectedMarker = null;
     }
+    // Remove previous path
+    if (selectedPath) {
+      viewer.entities.remove(selectedPath);
+      selectedPath = null;
+    }
   }
   // Select the new satellite
   selectedSat = satData;
@@ -299,12 +305,14 @@ function selectSatellite(satData) {
   selectedSat.entity.point.pixelSize = 6;
   // Add a billboard crosshair icon at the satellite's position for easier tracking
   selectedMarker = viewer.entities.add({
-    position: selectedSat.entity.position.clone(),
+    position: Cesium.Cartesian3.fromDegrees(selectedSat.lon, selectedSat.lat, selectedSat.alt * 1000),
     billboard: {
       image: crosshairIcon,
+      width: 32,
+      height: 32,
       verticalOrigin: Cesium.VerticalOrigin.CENTER,
       horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-      scale: 0.5
+      scale: 1.5  // Increased scale for better visibility
     }
   });
   // Fly camera to the selected satellite
@@ -313,9 +321,16 @@ function selectSatellite(satData) {
   showSatelliteInfo(selectedSat);
   // Show coverage footprint on Earth (blue circle) for this satellite
   showCoverage(selectedSat);
+  // Show orbital path
+  showOrbitalPath(selectedSat);
+  // On mobile, auto-show the sidebar to display info
+  const sidebar = document.getElementById("sidebar");
+  if (window.innerWidth <= 600) {
+    sidebar.classList.add("show");
+  }
 }
 
-// Display satellite info in the sidebar info panel
+// Display satellite info in the sidebar info panel, including advanced engineering details
 function showSatelliteInfo(sat) {
   const infoPanel = document.getElementById("infoPanel");
   infoPanel.innerHTML = "";
@@ -329,6 +344,20 @@ function showSatelliteInfo(sat) {
      Altitude: <span id="infoAlt"></span> km<br/>
      Velocity: <span id="infoVel"></span> km/s`;
   infoPanel.appendChild(posPara);
+  // Add orbital parameters (publicly derived from TLE)
+  const orbitalPara = document.createElement("p");
+  const incl = Cesium.Math.toDegrees(sat.satrec.inclo);
+  const periodMin = 86400 / sat.satrec.no / 60;
+  const ecc = sat.satrec.ecco;
+  const raan = Cesium.Math.toDegrees(sat.satrec.nodeo);
+  const argPerigee = Cesium.Math.toDegrees(sat.satrec.argpo);
+  orbitalPara.innerHTML =
+    `Inclination: ${incl.toFixed(2)}°<br/>
+     Eccentricity: ${ecc.toFixed(6)}<br/>
+     Orbital Period: ${periodMin.toFixed(2)} min<br/>
+     RAAN: ${raan.toFixed(2)}°<br/>
+     Argument of Perigee: ${argPerigee.toFixed(2)}°`;
+  infoPanel.appendChild(orbitalPara);
   const tlePara = document.createElement("p");
   tlePara.textContent = "TLE:";
   infoPanel.appendChild(tlePara);
@@ -403,10 +432,51 @@ function updateCoverageRadius(altKm) {
   coverageEntity.ellipse.semiMinorAxis = radiusMeters;
 }
 
+// Show approximate orbital path as a polyline for the selected satellite
+function showOrbitalPath(sat) {
+  const positions = [];
+  const periodMin = 86400 / sat.satrec.no / 60;
+  const steps = 100;
+  const stepMs = (periodMin * 60000) / steps;
+  const now = new Date().getTime();
+  for (let i = 0; i <= steps; i++) {
+    const time = new Date(now + i * stepMs);
+    const gmst = satellite.gstime(time);
+    const prop = satellite.propagate(sat.satrec, time);
+    if (prop.position) {
+      const gd = satellite.eciToGeodetic(prop.position, gmst);
+      const lon = Cesium.Math.toDegrees(gd.longitude);
+      const lat = Cesium.Math.toDegrees(gd.latitude);
+      const alt = gd.height * 1000;
+      positions.push(Cesium.Cartesian3.fromDegrees(lon, lat, alt));
+    }
+  }
+  if (positions.length > 1) {
+    selectedPath = viewer.entities.add({
+      polyline: {
+        positions: positions,
+        width: 2,
+        material: Cesium.Color.ORANGE
+      }
+    });
+  }
+}
+
 // 8. UI Event Listeners
 
-// Search box selection
+// Search box selection (enhanced for robustness, with debounce for exact match)
 const searchInput = document.getElementById("searchBox");
+let searchTimer;
+searchInput.addEventListener("input", () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    const query = searchInput.value.trim();
+    if (query && satByName[query]) {
+      selectSatellite(satByName[query]);
+      searchInput.blur();  // Hide keyboard on mobile after selection
+    }
+  }, 300);
+});
 searchInput.addEventListener("change", () => {
   const query = searchInput.value.trim();
   if (query && satByName[query]) {
@@ -425,8 +495,9 @@ searchInput.addEventListener("keyup", e => {
 // Click on globe to select a satellite
 viewer.screenSpaceEventHandler.setInputAction((movement) => {
   const picked = viewer.scene.pick(movement.position);
-  if (Cesium.defined(picked) && picked.id) {
-    const pickedName = picked.id.id || picked.id.name;
+  if (Cesium.defined(picked) && Cesium.defined(picked.id) && picked.id instanceof Cesium.Entity) {
+    const entity = picked.id;
+    const pickedName = entity.id;
     if (pickedName && satByName[pickedName]) {
       selectSatellite(satByName[pickedName]);
     }
@@ -488,7 +559,7 @@ document.getElementById("resetViewBtn").addEventListener("click", () => {
     selectedSat.entity.point.pixelSize = 3;
     selectedSat = null;
   }
-  // Remove coverage and marker if they exist
+  // Remove coverage, marker, and path if they exist
   if (coverageEntity) {
     viewer.entities.remove(coverageEntity);
     coverageEntity = null;
@@ -497,8 +568,12 @@ document.getElementById("resetViewBtn").addEventListener("click", () => {
     viewer.entities.remove(selectedMarker);
     selectedMarker = null;
   }
+  if (selectedPath) {
+    viewer.entities.remove(selectedPath);
+    selectedPath = null;
+  }
   // Zoom out to show all entities (entire constellation and Earth)
-  viewer.zoomTo(viewer.entities);  //:contentReference[oaicite:3]{index=3}
+  viewer.zoomTo(viewer.entities);
   // On mobile, hide sidebar for a full view
   if (sidebar.classList.contains("show")) {
     sidebar.classList.remove("show");

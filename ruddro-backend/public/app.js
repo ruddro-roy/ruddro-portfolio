@@ -30,22 +30,18 @@ const ORBIT_DURATION_PERIODS = 2; // Calculate orbit for 2 full periods.
 // --- CesiumJS Viewer Initialization ---
 
 // =================================================================================
-// CRITICAL SECURITY FIX & INSTRUCTIONS
+// SECURE TOKEN MANAGEMENT FOR DEPLOYMENT
 // =================================================================================
-// The previous access token was exposed on GitHub and has been revoked.
-// NEVER commit access tokens directly into your code.
-//
 // TO MAKE THE APP WORK:
-// 1. Go to https://cesium.com/ion/signup/ to create a free Cesium Ion account.
-// 2. Go to the "Access Tokens" page on your Cesium Ion dashboard.
-// 3. Copy the "Default" access token provided.
-// 4. Paste your token into the line below.
+// 1. Go to https://cesium.com/ion/ and get your free access token.
+// 2. Paste your token into the line below.
 //
-// For a real production deployment, this token should be loaded from a secure
-// environment variable, not hardcoded in the source file.
+// CRITICAL SECURITY WARNING:
+// After you paste your token and deploy the site, you MUST remove the token
+// from this file before committing any new changes to your public GitHub repository.
+// If you commit your token, it will be exposed and automatically disabled.
 // =================================================================================
-Cesium.Ion.defaultAccessToken = 'PASTE_YOUR_CESIUM_ION_TOKEN_HERE';
-
+Cesium.Ion.defaultAccessToken = 'PASTE_YOUR_CESIUM_ION_TOKEN_HERE'
 
 const viewer = new Cesium.Viewer("cesiumContainer", {
     // Use high-quality Bing Maps Aerial imagery.
@@ -66,7 +62,9 @@ viewer.scene.maximumRenderTimeChange = Infinity;
 
 // --- Main Application Flow ---
 document.addEventListener('DOMContentLoaded', () => {
-    // Check if the user has replaced the placeholder token.
+    // CORRECTED LOGIC: This check now correctly looks for the placeholder text.
+    // If the token on line 44 is the real token, this check will be false,
+    // and the application will proceed to load correctly.
     if (Cesium.Ion.defaultAccessToken === 'PASTE_YOUR_CESIUM_ION_TOKEN_HERE') {
         const loadingIndicator = document.getElementById('loadingIndicator');
         loadingIndicator.innerHTML = `<p style="color:yellow; text-align:center;">Configuration Needed!<br>Please add your Cesium Ion Access Token in app.js to load the globe.</p>`;

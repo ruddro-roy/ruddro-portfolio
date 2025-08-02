@@ -1,157 +1,275 @@
-/* Global styles and theming */
-body {
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  font-family: sans-serif;
-  --bg-color: #1e1e1e;
-  --text-color: #f0f0f0;
-  --panel-bg: #2a2a2a;
-  --panel-text: #ffffff;
-  --accent-color: #4db6ac;
+/* --- Global Styles & Theming --- */
+:root {
+    --font-primary: 'Roboto', sans-serif;
+    --font-mono: 'Inconsolata', monospace;
 }
+
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    font-family: var(--font-primary);
+    display: flex;
+    flex-direction: row;
+    height: 100vh;
+    width: 100vw;
+}
+
+body.dark {
+    --bg-color: #0d1117;
+    --text-color: #c9d1d9;
+    --panel-bg: rgba(22, 27, 34, 0.9);
+    --panel-border: #30363d;
+    --header-text: #58a6ff;
+    --accent-color: #58a6ff;
+    --input-bg: #010409;
+    --input-border: #30363d;
+    --placeholder-text: #484f58;
+}
+
 body.light {
-  --bg-color: #ffffff;
-  --text-color: #000000;
-  --panel-bg: #f0f0f0;
-  --panel-text: #000000;
-  --accent-color: #007c91;
-}
-/* Apply theme colors */
-body {
-  background-color: var(--bg-color);
-  color: var(--text-color);
-}
-#sidebar {
-  background-color: var(--panel-bg);
-  color: var(--panel-text);
-}
-button, input {
-  color: inherit;
-  font: inherit;
+    --bg-color: #f0f2f5;
+    --text-color: #24292f;
+    --panel-bg: rgba(255, 255, 255, 0.9);
+    --panel-border: #d0d7de;
+    --header-text: #0969da;
+    --accent-color: #0969da;
+    --input-bg: #f6f8fa;
+    --input-border: #d0d7de;
+    --placeholder-text: #6e7781;
 }
 
-/* Layout: sidebar and map */
-#sidebar {
-  width: 300px;
-  padding: 10px;
-  box-sizing: border-box;
-  max-height: 100vh;
-  overflow-y: auto;
-}
+/* --- Main Layout --- */
 #cesiumContainer {
-  flex: 1;
-  width: 100%;
-  height: 100%;
-}
-/* Use flex layout for body: sidebar + map side by side */
-html, body {
-  height: 100%;
-}
-body {
-  display: flex;
-  flex-direction: row;
-}
-body > #sidebar, body > #cesiumContainer {
-  display: inline-block;
-  vertical-align: top;
+    flex: 1;
+    height: 100%;
 }
 
-/* Sidebar content styling */
-#sidebar h1 {
-  font-size: 1.2em;
-  margin: 0 0 0.5em;
-}
-#searchBox {
-  width: 100%;
-  padding: 5px;
-  margin-bottom: 0.5em;
-  box-sizing: border-box;
-}
-/* Info panel (selected satellite details) */
-#infoPanel {
-  font-size: 0.9em;
-  background: rgba(0,0,0,0.1);
-  padding: 5px;
-  margin-bottom: 0.5em;
-  border-radius: 4px;
-  white-space: pre-line;
-}
-#infoPanel h3 {
-  margin: 0.2em 0;
+#sidebar {
+    width: 380px;
+    height: 100vh;
+    box-sizing: border-box;
+    background-color: var(--panel-bg);
+    border-left: 1px solid var(--panel-border);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s ease-in-out;
+    z-index: 100;
 }
 
-/* Overhead info panel */
-#overheadPanel {
-  font-size: 0.9em;
-  background: rgba(0,0,0,0.1);
-  padding: 5px;
-  margin-bottom: 0.5em;
-  border-radius: 4px;
-  display: none;  /* shown only when location is available */
-}
-#overheadPanel p {
-  margin: 0.2em 0;
+.sidebar-header {
+    padding: 20px;
+    border-bottom: 1px solid var(--panel-border);
 }
 
-/* Control buttons container */
-#controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-#controls button {
-  flex: 1 1 auto;
-  margin-top: 0.2em;
-  padding: 5px;
-  background: var(--accent-color);
-  border: none;
-  border-radius: 3px;
-  cursor: pointer;
-}
-#controls button:hover {
-  opacity: 0.8;
+.sidebar-header h1 {
+    font-size: 1.8em;
+    color: var(--header-text);
+    margin: 0;
 }
 
-/* Mobile hamburger button */
-#togglePanelBtn {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  z-index: 300;  /* Raised above sidebar (was 100) so it stays visible when sidebar is open */
-  padding: 8px;
-  font-size: 1.2em;
-  background: var(--panel-bg);
-  color: var(--panel-text);
-  border: none;
-  border-radius: 3px;
-  cursor: pointer;
-  display: none; /* shown via media query */
+.sidebar-header p {
+    margin: 4px 0 0;
+    color: var(--text-color);
+    font-size: 0.9em;
 }
 
-/* Responsive behavior for mobile screens */
-@media (max-width: 600px) {
-  #sidebar {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    z-index: 200;
-    transform: translateX(-100%);
-    transition: transform 0.3s ease;
-    max-height: none;
-    width: 80%;
-  }
-  #sidebar.show {
-    transform: translateX(0);
-  }
-  /* Show hamburger on mobile */
-  #togglePanelBtn {
+.sidebar-content {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 20px;
+}
+
+.control-group {
+    margin-bottom: 24px;
+}
+
+.control-group label {
     display: block;
-  }
-  /* Map always fills screen underneath */
-  #cesiumContainer {
+    font-size: 0.75em;
+    font-weight: 700;
+    color: var(--text-color);
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+}
+
+#searchBox {
+    width: 100%;
+    padding: 10px;
+    box-sizing: border-box;
+    background-color: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-radius: 6px;
+    color: var(--text-color);
+    font-size: 1em;
+}
+
+#searchBox:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.3);
+}
+
+/* --- Info Panel --- */
+#infoPanel {
+    color: var(--text-color);
+}
+
+.placeholder-text {
+    text-align: center;
+    padding-top: 40px;
+    color: var(--placeholder-text);
+}
+
+.placeholder-text p {
+    font-weight: 500;
+    font-size: 1.1em;
+    margin: 0;
+}
+
+.placeholder-text span {
+    font-size: 0.9em;
+}
+
+.info-header h2 {
+    font-size: 1.5em;
+    margin: 0 0 5px 0;
+    color: var(--text-color);
+}
+
+.info-header p {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    margin: 0 0 20px 0;
+    color: var(--placeholder-text);
+}
+
+.info-section {
+    margin-bottom: 20px;
+}
+
+.info-section h3 {
+    font-size: 0.8em;
+    font-weight: 700;
+    color: var(--header-text);
+    border-bottom: 1px solid var(--panel-border);
+    padding-bottom: 5px;
+    margin: 0 0 10px 0;
+    letter-spacing: 0.8px;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 15px;
+}
+
+.info-item {
+    font-size: 0.9em;
+}
+
+.info-item .label {
+    display: block;
+    font-size: 0.85em;
+    color: var(--placeholder-text);
+}
+
+.info-item .value {
+    font-weight: 500;
+    font-family: var(--font-mono);
+}
+
+/* --- Footer & Buttons --- */
+.sidebar-footer {
+    padding: 15px;
+    border-top: 1px solid var(--panel-border);
+    display: flex;
+    gap: 10px;
+}
+
+.sidebar-footer button {
+    flex: 1;
+    padding: 10px;
+    background: transparent;
+    border: 1px solid var(--input-border);
+    color: var(--text-color);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.sidebar-footer button:hover {
+    background-color: var(--input-bg);
+    border-color: var(--accent-color);
+}
+
+/* --- Mobile Adjustments --- */
+#togglePanelBtn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    z-index: 200;
+    padding: 10px;
+    font-size: 1.5em;
+    background: var(--panel-bg);
+    color: var(--text-color);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    cursor: pointer;
+    display: none;
+    backdrop-filter: blur(5px);
+}
+
+@media (max-width: 800px) {
+    #sidebar {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        transform: translateX(100%);
+        border-left: none;
+    }
+
+    #sidebar.show {
+        transform: translateX(0);
+        box-shadow: -10px 0 30px rgba(0,0,0,0.2);
+    }
+
+    #togglePanelBtn {
+        display: block;
+    }
+}
+
+/* --- Loading Indicator --- */
+#loadingIndicator {
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
     height: 100%;
-  }
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    color: white;
+    font-size: 1.2em;
+}
+
+.spinner {
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top: 4px solid #fff;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 15px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }

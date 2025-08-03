@@ -1,19 +1,13 @@
 {
-  "name": "mission-control-satellite-tracker",
-  "version": "2.1.0",
-  "description": "Real-time Mission Control for satellite constellation tracking with 3D visualization and robust error handling",
+  "name": "mission-control-professional",
+  "version": "2.0.0",
+  "description": "Professional Mission Control for satellite constellation tracking with 3D visualization",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "simple": "node simple-server.js",
     "dev": "nodemon server.js",
-    "dev-simple": "nodemon simple-server.js",
     "test": "node -e \"console.log('Testing server startup...'); require('./server.js')\"",
-    "test-simple": "node -e \"console.log('Testing simple server...'); require('./simple-server.js')\"",
-    "health": "curl -f http://localhost:3000/api/health || exit 1",
-    "health-simple": "curl -f http://localhost:3001/api/health || exit 1",
-    "prestart": "echo 'Starting Mission Control Backend...'",
-    "postinstall": "echo 'Mission Control dependencies installed successfully'"
+    "health": "curl -f http://localhost:3000/api/health || exit 1"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -26,7 +20,7 @@
     "nodemon": "^3.0.1"
   },
   "engines": {
-    "node": ">=16.0.0",
+    "node": ">=18.0.0",
     "npm": ">=8.0.0"
   },
   "keywords": [
@@ -38,22 +32,12 @@
     "space",
     "real-time",
     "mission-control",
-    "tle",
-    "sgp4",
-    "starlink"
+    "professional"
   ],
   "author": "Ruddro Roy",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/ruddro-roy/mission-control"
-  },
-  "bugs": {
-    "url": "https://github.com/ruddro-roy/mission-control/issues"
-  },
-  "homepage": "https://github.com/ruddro-roy/mission-control#readme",
-  "config": {
-    "port": "3001",
-    "simple-port": "3001"
   }
 }

@@ -269,10 +269,10 @@ function generateEngineeringData(name, line1, line2, satrec, category) {
     case 'MILITARY':
       objectType = 'MILITARY SATELLITE';
       owner = 'US SPACE FORCE';
-      launchSite = 'VANDENBERG SFB';
+      launchSite = 'CLASSIFIED';
       country = 'UNITED STATES';
-      purpose = 'DEFENSE/SURVEILLANCE';
-      expectedLife = '5-15 YEARS';
+      purpose = 'DEFENSE OPERATIONS';
+      expectedLife = 'CLASSIFIED';
       break;
   }
   
@@ -340,7 +340,7 @@ async function handleProfessionalPositions(req, res) {
         const vel = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
 
         // Professional orbital calculations
-        const meanMotion = satrec.no_kozai * (2 * Math.PI / 86400);
+        const meanMotion = satrec.no * (2 * Math.PI / 86400);
         const semiMajor = Math.pow(398600.4418 / (meanMotion * meanMotion), 1 / 3);
         const period = (2 * Math.PI * Math.sqrt(Math.pow(semiMajor, 3) / 398600.4418)) / 60;
         
@@ -487,3 +487,4 @@ app.listen(port, () => {
   console.log(`   - AI Analysis: ${process.env.GEMINI_API_KEY ? '✅ Advanced AI enabled' : '⚠️  Basic analysis only'}`);
   console.log(`   - Mode: Professional Mission Control`);
 });
+

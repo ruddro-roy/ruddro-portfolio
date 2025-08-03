@@ -1,21 +1,13 @@
 {
   "name": "starlink-satellite-tracker",
-  "version": "1.0.0",
-  "description": "Enterprise-grade real-time Starlink satellite tracking application",
+  "version": "2.0.0",
+  "description": "Industry-grade real-time Starlink satellite tracking",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js",
-    "build": "echo 'Static site - no build required'"
+    "dev": "node server.js"
   },
-  "keywords": [
-    "starlink",
-    "satellite",
-    "tracking",
-    "cesium",
-    "real-time",
-    "space"
-  ],
+  "keywords": ["starlink", "satellite", "cesium", "real-time"],
   "author": "Your Name",
   "license": "MIT",
   "dependencies": {
@@ -23,10 +15,9 @@
     "cors": "^2.8.5",
     "helmet": "^7.1.0",
     "compression": "^1.7.4",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^2.7.0"
   },
   "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=8.0.0"
+    "node": ">=18.0.0"
   }
 }

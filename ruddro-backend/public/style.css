@@ -1,4 +1,4 @@
-/* --- MISSION CONTROL STYLES --- */
+/* --- STARLINK SIMULATOR STYLES --- */
 :root {
     --font-primary: 'Roboto', sans-serif;
     --font-mono: 'Inconsolata', monospace;
@@ -243,6 +243,72 @@ body.light {
     text-shadow: 0 0 5px rgba(0, 255, 136, 0.3);
 }
 
+/* --- STARLINK SPECIFIC STYLES --- */
+.orbit-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.orbit-stat {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.orbit-label {
+    width: 80px;
+    color: var(--text-color);
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-align: right;
+}
+
+.orbit-bar-container {
+    flex: 1;
+    position: relative;
+    height: 24px;
+    background: rgba(0, 212, 255, 0.05);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.orbit-bar {
+    height: 100%;
+    background: linear-gradient(90deg, rgba(0, 212, 255, 0.3), rgba(0, 255, 136, 0.4));
+    border-radius: 4px;
+    transition: width 1s ease-in-out;
+}
+
+.orbit-value {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-color);
+    font-size: 0.85rem;
+    text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+}
+
+.info-text {
+    color: var(--text-color);
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin-bottom: 15px;
+}
+
+.code-text {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--success-color);
+    background: rgba(0, 255, 136, 0.05);
+    padding: 5px;
+    border-radius: 4px;
+    display: inline-block;
+    word-break: break-all;
+}
+
 /* --- SIDEBAR FOOTER --- */
 .sidebar-footer {
     padding: 15px;
@@ -411,6 +477,17 @@ body.light {
     .sidebar-footer {
         flex-direction: column;
         gap: 8px;
+    }
+    
+    .orbit-stat {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 5px;
+    }
+    
+    .orbit-label {
+        width: auto;
+        text-align: left;
     }
 }
 

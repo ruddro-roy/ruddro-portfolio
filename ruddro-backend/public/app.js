@@ -12,9 +12,11 @@
  */
 
 // --- CONFIGURATION & CONSTANTS ---
-const TLE_URL = "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle";
+// **PERFORMANCE FIX:** Changed the TLE_URL to load a smaller, faster dataset (100 brightest satellites)
+// to prevent the browser from freezing on startup.
+const TLE_URL = "https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle";
 const SATCAT_URL_BASE = "https://celestrak.org/satcat/records.php";
-const SELECTED_SAT_ICON_URL = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48bGluZSB4MT0iNSIgeTE9IjEyIiB4Mj0iMTkiIHkyPSIxMiI+PC9saW5lPjxsaW5lIHgxPSIxMiIgeTE9IjUiIHgyPSIxMiIgeTI9IjE5Ij48L2xpbmU+PC9zdmc+';
+const SELECTED_SAT_ICON_URL = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZHRoPSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48bGluZSB4MT0iNSIgeTE9IjEyIiB4Mj0iMTkiIHkyPSIxMiI+PC9saW5lPjxsaW5lIHgxPSIxMiIgeTE9IjUiIHgyPSIxMiIgeTI9IjE5Ij48L2xpbmU+PC9zdmc+';
 
 const ORBIT_PROPAGATION_STEP_SECONDS = 60;
 const ORBIT_DURATION_PERIODS = 2;
@@ -68,7 +70,10 @@ document.addEventListener('DOMContentLoaded', () => {
  * Binds all user interface event listeners.
  */
 function initUI() {
-    document.getElementById('toggleThemeBtn').addEventListener('click', () => document.body.classList.toggle('light'));
+    document.getElementById('toggleThemeBtn').addEventListener('click', () => {
+        document.body.classList.toggle('light');
+        document.body.classList.toggle('dark');
+    });
     document.getElementById('resetViewBtn').addEventListener('click', resetCamera);
     document.getElementById('togglePanelBtn').addEventListener('click', () => document.getElementById('sidebar').classList.toggle('show'));
     document.getElementById('searchBox').addEventListener('change', handleSearch);

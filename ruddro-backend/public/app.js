@@ -1,20 +1,17 @@
 /**
- * STARLINK CONSTELLATION SIMULATOR
- * 
- * Specialized version of Mission Control for Starlink satellite tracking
- * Optimized for high-performance rendering of the entire Starlink constellation
+ * MISSION CONTROL: ROBUST SATELLITE TRACKING PLATFORM
+ * Fixed implementation with comprehensive error handling and fallbacks
  */
 
-// --- CONFIGURATION ---
+// --- ROBUST CONFIGURATION ---
 const CONFIG = {
     TLE_SOURCES: [
-        // Primary source - just Starlink satellites
+        'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle',
         'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle',
-        // Fallback sources
-        'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle'
+        'https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle'
     ],
-    CESIUM_TOKEN: window.CESIUM_ION_TOKEN || '', // Get token from config.js
-    MAX_SATELLITES: 5000, // Higher limit for Starlink constellation
+    CESIUM_TOKEN: 'PASTE_YOUR_CESIUM_ION_TOKEN_HERE', // Free token
+    MAX_SATELLITES: 1000,
     UPDATE_INTERVAL: 30000, // 30 seconds
     RETRY_ATTEMPTS: 3,
     RETRY_DELAY: 2000
@@ -23,9 +20,22 @@ const CONFIG = {
 // --- GLOBAL STATE ---
 let viewer = null;
 let satellites = [];
-let renderedSatellites = new Map();
+let satByName = new Map();
 let loadingManager = null;
 let errorManager = null;
+let performanceMonitor = null;
+
+// --- SATELLITE CATEGORIES ---
+const SATELLITE_CATEGORIES = {
+    STARLINK: { color: [0, 255, 255], name: 'Starlink' },
+    GPS: { color: [0, 255, 0], name: 'GPS/GNSS' },
+    ISS: { color: [255, 255, 255], name: 'Space Station' },
+    WEATHER: { color: [255, 165, 0], name: 'Weather' },
+    COMMUNICATION: { color: [255, 255, 0], name: 'Communication' },
+    SCIENTIFIC: { color: [255, 0, 255], name: 'Scientific' },
+    MILITARY: { color: [255, 0, 0], name: 'Military' },
+    OTHER: { color: [173, 216, 230], name: 'Other' }
+};
 
 // --- LOADING STATE MANAGER ---
 class LoadingStateManager {
@@ -82,7 +92,7 @@ class ErrorManager {
             this.errors.shift();
         }
         
-        console.error(`[Starlink Simulator Error] ${context}:`, error);
+        console.error(`[Mission Control Error] ${context}:`, error);
     }
 
     showUserError(message, isRecoverable = true) {
@@ -90,13 +100,13 @@ class ErrorManager {
         if (loadingElement) {
             loadingElement.innerHTML = `
                 <div style="text-align: center; color: #ff6b6b; padding: 40px;">
-                    <h3>Starlink Simulator Alert</h3>
+                    <h3>Mission Control Alert</h3>
                     <p>${message}</p>
                     ${isRecoverable ? `
                         <button onclick="location.reload()" 
                                 style="margin-top: 20px; padding: 12px 24px; background: #007acc; 
                                        color: white; border: none; border-radius: 6px; cursor: pointer;">
-                            🔄 Restart Simulator
+                            🔄 Restart Mission Control
                         </button>
                     ` : ''}
                 </div>
@@ -156,8 +166,8 @@ class TLEValidator {
     }
 }
 
-// --- CESIUM VIEWER SETUP ---
-class StarlinkCesiumViewer {
+// --- ROBUST CESIUM VIEWER ---
+class RobustCesiumViewer {
     static async create(containerId) {
         try {
             // Set Cesium Ion token
@@ -168,12 +178,12 @@ class StarlinkCesiumViewer {
             }
 
             const viewer = new Cesium.Viewer(containerId, {
-                // Basic imagery
+                // Basic imagery that works without Ion
                 imageryProvider: new Cesium.OpenStreetMapImageryProvider({
                     url: 'https://a.tile.openstreetmap.org/'
                 }),
                 
-                // Disable features for performance
+                // Disable problematic features
                 terrainProvider: Cesium.Ellipsoid.WGS84,
                 skyBox: false,
                 skyAtmosphere: false,
@@ -188,6 +198,7 @@ class StarlinkCesiumViewer {
                 navigationHelpButton: false,
                 sceneModePicker: false,
                 fullscreenButton: false,
+                vrButton: false,
                 
                 // Performance settings
                 requestRenderMode: true,
@@ -202,8 +213,8 @@ class StarlinkCesiumViewer {
                 }
             });
 
-            // Configure scene for optimal performance
-            viewer.scene.globe.enableLighting = false;
+            // Configure scene
+            viewer.scene.globe.enableLighting = false; // Disable for performance
             viewer.scene.globe.atmosphereColorCorrection = false;
             
             // Set initial view
@@ -238,6 +249,7 @@ class StarlinkCesiumViewer {
                     navigationHelpButton: false,
                     sceneModePicker: false,
                     fullscreenButton: false,
+                    vrButton: false,
                     contextOptions: {
                         requestWebgl1: true
                     }
@@ -261,41 +273,18 @@ class SatelliteDataManager {
     }
 
     async fetchTLEData(attempt = 0) {
-        // Try to fetch from local backend first
-        try {
-            console.log('📡 Fetching TLE data from local backend...');
-            
-            const response = await fetch('/api/tle', {
-                headers: {
-                    'User-Agent': 'Starlink-Simulator/1.0'
-                }
-            });
-            
-            if (response.ok) {
-                const data = await response.text();
-                
-                if (data && data.length > 100) {
-                    console.log('✅ Successfully fetched TLE data from local backend');
-                    return data;
-                }
-            }
-        } catch (localError) {
-            console.warn('⚠️ Local backend fetch failed, trying direct sources');
-        }
-        
-        // Fall back to direct sources if local backend fails
         const source = CONFIG.TLE_SOURCES[attempt % CONFIG.TLE_SOURCES.length];
         
         try {
-            console.log(`📡 Fetching TLE data from source ${attempt + 1}: ${source}`);
+            console.log(`📡 Fetching TLE data from source ${attempt + 1}...`);
             
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 15000);
             
-            const response = await fetch('/api/proxy/' + encodeURIComponent(source), {
+            const response = await fetch(source, {
                 signal: controller.signal,
                 headers: {
-                    'User-Agent': 'Starlink-Simulator/1.0'
+                    'User-Agent': 'Mission-Control/1.0'
                 }
             });
             
@@ -335,9 +324,6 @@ class SatelliteDataManager {
                 const line2 = lines[i + 2].trim();
 
                 if (!name || !line1 || !line2) continue;
-                
-                // Focus on Starlink satellites
-                if (!name.includes('STARLINK')) continue;
 
                 // Validate TLE format
                 TLEValidator.validateTLE(line1, line2);
@@ -351,10 +337,10 @@ class SatelliteDataManager {
 
                 const satData = {
                     name: name,
-                    id: name.replace(/\s+/g, ''),
                     line1: line1,
                     line2: line2,
                     satrec: satrec,
+                    category: this.categorizeSatellite(name),
                     entity: null
                 };
 
@@ -369,7 +355,7 @@ class SatelliteDataManager {
             }
         }
 
-        console.log(`✅ Parsed ${parsedSatellites.length} Starlink satellites, ${errors.length} errors`);
+        console.log(`✅ Parsed ${parsedSatellites.length} satellites, ${errors.length} errors`);
         
         if (errors.length > 0 && errors.length < 10) {
             console.warn('TLE parsing errors:', errors);
@@ -377,35 +363,36 @@ class SatelliteDataManager {
 
         return parsedSatellites;
     }
+
+    categorizeSatellite(name) {
+        const nameUpper = name.toUpperCase();
+        
+        if (nameUpper.includes('STARLINK')) return 'STARLINK';
+        if (nameUpper.includes('GPS') || nameUpper.includes('NAVSTAR')) return 'GPS';
+        if (nameUpper.includes('ISS') || nameUpper.includes('ZARYA')) return 'ISS';
+        if (nameUpper.includes('GOES') || nameUpper.includes('NOAA')) return 'WEATHER';
+        if (nameUpper.includes('INTELSAT') || nameUpper.includes('EUTELSAT')) return 'COMMUNICATION';
+        if (nameUpper.includes('LANDSAT') || nameUpper.includes('SENTINEL')) return 'SCIENTIFIC';
+        if (nameUpper.includes('USA-') || nameUpper.includes('MILSTAR')) return 'MILITARY';
+        
+        return 'OTHER';
+    }
 }
 
 // --- SATELLITE RENDERER ---
-class StarlinkRenderer {
+class SatelliteRenderer {
     constructor(viewer) {
         this.viewer = viewer;
-        
-        // Use a single point collection for performance
-        this.pointCollection = viewer.scene.primitives.add(
-            new Cesium.PointPrimitiveCollection({
-                blendOption: Cesium.BlendOption.OPAQUE_AND_TRANSLUCENT
-            })
-        );
-        
+        this.pointCollection = viewer.scene.primitives.add(new Cesium.PointPrimitiveCollection());
+        this.labelCollection = viewer.scene.primitives.add(new Cesium.LabelCollection());
         this.renderedSatellites = new Map();
-        this.satellitesByOrbit = new Map();
     }
 
     renderSatellites(satellites) {
-        console.log(`🎯 Rendering ${satellites.length} Starlink satellites...`);
+        console.log(`🎯 Rendering ${satellites.length} satellites...`);
         
         const now = new Date();
         let rendered = 0;
-        
-        // Group satellites by orbital shell (approximate altitude)
-        this.groupSatellitesByOrbit(satellites);
-        
-        // Create different colors for each orbital shell
-        const orbitColors = this.createOrbitColors();
         
         // Limit satellites for performance
         const satellitesToRender = satellites.slice(0, CONFIG.MAX_SATELLITES);
@@ -415,104 +402,36 @@ class StarlinkRenderer {
                 const position = this.calculatePosition(sat.satrec, now);
                 if (!position) return;
 
-                // Get orbit group for coloring
-                const altitude = this.calculateAltitude(position);
-                const orbitGroup = this.getOrbitGroup(altitude);
-                const color = orbitColors.get(orbitGroup) || Cesium.Color.CYAN;
+                const category = SATELLITE_CATEGORIES[sat.category] || SATELLITE_CATEGORIES.OTHER;
+                const color = Cesium.Color.fromBytes(category.color[0], category.color[1], category.color[2], 200);
 
                 // Add point
                 const point = this.pointCollection.add({
                     position: position,
-                    pixelSize: 4, // Smaller point size for better performance
+                    pixelSize: 6,
                     color: color,
                     outlineColor: Cesium.Color.WHITE,
                     outlineWidth: 1,
                     scaleByDistance: new Cesium.NearFarScalar(1.5e6, 1.0, 1.5e8, 0.1),
-                    translucencyByDistance: new Cesium.NearFarScalar(1.5e6, 1.0, 1.5e8, 0.6)
+                    translucencyByDistance: new Cesium.NearFarScalar(1.5e6, 1.0, 1.5e8, 0.8)
                 });
 
                 // Store satellite data
-                this.renderedSatellites.set(sat.id, {
+                this.renderedSatellites.set(sat.name, {
                     satellite: sat,
                     point: point,
-                    orbitGroup: orbitGroup,
                     lastUpdate: now.getTime()
                 });
 
                 rendered++;
 
             } catch (error) {
-                // Silently fail for performance
-                // console.warn(`Failed to render ${sat.name}:`, error.message);
+                console.warn(`Failed to render ${sat.name}:`, error.message);
             }
         });
 
-        console.log(`✅ Successfully rendered ${rendered} Starlink satellites`);
+        console.log(`✅ Successfully rendered ${rendered} satellites`);
         this.viewer.scene.requestRender();
-        
-        // Update stats
-        this.updateStatsDisplay(rendered);
-    }
-    
-    groupSatellitesByOrbit(satellites) {
-        this.satellitesByOrbit.clear();
-        const now = new Date();
-        
-        satellites.forEach(sat => {
-            try {
-                const position = this.calculatePosition(sat.satrec, now);
-                if (!position) return;
-                
-                const altitude = this.calculateAltitude(position);
-                const orbitGroup = this.getOrbitGroup(altitude);
-                
-                if (!this.satellitesByOrbit.has(orbitGroup)) {
-                    this.satellitesByOrbit.set(orbitGroup, []);
-                }
-                
-                this.satellitesByOrbit.get(orbitGroup).push(sat);
-            } catch (error) {
-                // Silently fail
-            }
-        });
-        
-        console.log('Orbital groups:', Array.from(this.satellitesByOrbit.keys()));
-    }
-    
-    createOrbitColors() {
-        const colors = new Map();
-        const orbitGroups = Array.from(this.satellitesByOrbit.keys()).sort();
-        
-        // Color palette for different orbital shells
-        const baseColors = [
-            Cesium.Color.fromBytes(0, 255, 255, 200),    // Cyan
-            Cesium.Color.fromBytes(0, 255, 0, 200),      // Green
-            Cesium.Color.fromBytes(255, 255, 0, 200),    // Yellow
-            Cesium.Color.fromBytes(255, 165, 0, 200),    // Orange
-            Cesium.Color.fromBytes(255, 0, 255, 200),    // Magenta
-            Cesium.Color.fromBytes(255, 0, 0, 200),      // Red
-            Cesium.Color.fromBytes(0, 0, 255, 200)       // Blue
-        ];
-        
-        orbitGroups.forEach((group, index) => {
-            colors.set(group, baseColors[index % baseColors.length]);
-        });
-        
-        return colors;
-    }
-    
-    calculateAltitude(position) {
-        const cartographic = Cesium.Cartographic.fromCartesian(position);
-        return cartographic.height / 1000; // km
-    }
-    
-    getOrbitGroup(altitudeKm) {
-        // Group Starlink satellites by approximate orbital shell
-        if (altitudeKm < 350) return 'Shell-1';
-        if (altitudeKm < 450) return 'Shell-2';
-        if (altitudeKm < 550) return 'Shell-3';
-        if (altitudeKm < 650) return 'Shell-4';
-        return 'Shell-5';
     }
 
     calculatePosition(satrec, time) {
@@ -520,13 +439,13 @@ class StarlinkRenderer {
             const propagationResult = satellite.propagate(satrec, time);
             
             if (!propagationResult.position) {
-                return null;
+                throw new Error('No position returned from propagation');
             }
 
             // Check for NaN values
             const pos = propagationResult.position;
             if (isNaN(pos.x) || isNaN(pos.y) || isNaN(pos.z)) {
-                return null;
+                throw new Error('NaN values in position');
             }
 
             // Convert from km to meters and ECI to ECEF
@@ -551,102 +470,182 @@ class StarlinkRenderer {
     updatePositions() {
         const now = new Date();
         const currentTime = now.getTime();
-        let updated = 0;
 
-        this.renderedSatellites.forEach((data, id) => {
-            // Update only satellites that are visible or need updating
+        this.renderedSatellites.forEach((data, name) => {
+            // Update every 30 seconds
             if (currentTime - data.lastUpdate > 30000) {
                 try {
                     const newPosition = this.calculatePosition(data.satellite.satrec, now);
                     if (newPosition) {
                         data.point.position = newPosition;
                         data.lastUpdate = currentTime;
-                        updated++;
                     }
                 } catch (error) {
-                    // Silently fail for performance
+                    console.warn(`Failed to update position for ${name}:`, error.message);
                 }
             }
         });
 
         this.viewer.scene.requestRender();
-        if (updated > 0) {
-            console.log(`Updated positions for ${updated} satellites`);
+    }
+}
+
+// --- MAIN APPLICATION ---
+class MissionControlApp {
+    constructor() {
+        this.loadingManager = new LoadingStateManager();
+        this.errorManager = new ErrorManager();
+        this.dataManager = new SatelliteDataManager();
+        this.renderer = null;
+        this.updateInterval = null;
+    }
+
+    async initialize() {
+        try {
+            this.loadingManager.showLoading('Initializing Mission Control...');
+
+            // Check dependencies
+            await this.checkDependencies();
+
+            // Initialize Cesium viewer
+            this.loadingManager.updateProgress('Creating 3D visualization...');
+            viewer = await RobustCesiumViewer.create('cesiumContainer');
+            this.renderer = new SatelliteRenderer(viewer);
+
+            // Load satellite data
+            this.loadingManager.updateProgress('Acquiring satellite constellation data...');
+            await this.loadSatelliteData();
+
+            // Setup UI
+            this.loadingManager.updateProgress('Initializing user interface...');
+            this.setupUI();
+
+            // Start real-time updates
+            this.startUpdates();
+
+            this.loadingManager.hideLoading();
+            console.log('🎉 Mission Control fully operational!');
+
+        } catch (error) {
+            this.errorManager.logError(error, 'Application initialization');
+            this.errorManager.showUserError(`Initialization failed: ${error.message}`);
         }
     }
-    
-    updateStatsDisplay(count) {
-        const infoPanel = document.getElementById('infoPanel');
-        if (!infoPanel) return;
+
+    async checkDependencies() {
+        const missing = [];
         
-        // Get orbital shell statistics
-        const orbitStats = Array.from(this.satellitesByOrbit.entries())
-            .map(([shell, sats]) => ({ 
-                shell, 
-                count: sats.length 
-            }))
-            .sort((a, b) => b.count - a.count);
-            
-        let statsHtml = `
-            <div class="info-header">
-                <h2>Starlink Constellation</h2>
-                <p>Real-time tracking of ${count} active satellites</p>
-            </div>
-            
-            <div class="info-section">
-                <h3>🛰️ CONSTELLATION STATS</h3>
-                <div class="info-grid">
-                    <div class="info-item">
-                        <span class="label">Total Satellites</span>
-                        <span class="value">${count}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Orbital Shells</span>
-                        <span class="value">${this.satellitesByOrbit.size}</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="info-section">
-                <h3>📡 ORBITAL DISTRIBUTION</h3>
-                <div class="orbit-bars">
-        `;
+        if (typeof Cesium === 'undefined') {
+            missing.push('Cesium.js');
+        }
         
-        // Add bars for each orbital shell
-        orbitStats.forEach(stat => {
-            const percentage = Math.round((stat.count / count) * 100);
-            statsHtml += `
-                <div class="orbit-stat">
-                    <div class="orbit-label">${stat.shell}</div>
-                    <div class="orbit-bar-container">
-                        <div class="orbit-bar" style="width: ${percentage}%"></div>
-                        <span class="orbit-value">${stat.count} satellites (${percentage}%)</span>
-                    </div>
-                </div>
-            `;
-        });
-        
-        statsHtml += `
-                </div>
-            </div>
-            
-            <div class="info-section">
-                <h3>ℹ️ ABOUT STARLINK</h3>
-                <p class="info-text">
-                    Starlink is SpaceX's satellite internet constellation providing global broadband 
-                    coverage. Satellites orbit at approximately 550 km altitude in multiple orbital 
-                    shells, each containing hundreds of satellites.
-                </p>
-                <p class="info-text">
-                    Click on the globe to select individual satellites or use the search 
-                    functionality to find specific Starlink satellites by name or ID.
-                </p>
-            </div>
-        `;
-        
-        infoPanel.innerHTML = statsHtml;
+        if (typeof satellite === 'undefined') {
+            missing.push('satellite.js');
+        }
+
+        if (missing.length > 0) {
+            throw new Error(`Missing dependencies: ${missing.join(', ')}`);
+        }
     }
-    
+
+    async loadSatelliteData() {
+        try {
+            const tleData = await this.dataManager.fetchTLEData();
+            const parsedSatellites = this.dataManager.parseTLEData(tleData);
+            
+            if (parsedSatellites.length === 0) {
+                throw new Error('No valid satellites found in TLE data');
+            }
+
+            satellites = parsedSatellites;
+            
+            // Build name lookup map
+            satellites.forEach(sat => {
+                satByName.set(sat.name.toUpperCase(), sat);
+            });
+
+            // Render satellites
+            this.renderer.renderSatellites(satellites);
+            
+            // Populate search
+            this.populateSearch();
+
+        } catch (error) {
+            throw new Error(`Failed to load satellite data: ${error.message}`);
+        }
+    }
+
+    populateSearch() {
+        const searchList = document.getElementById('satList');
+        if (searchList) {
+            searchList.innerHTML = '';
+            
+            // Add top satellites for search
+            const topSatellites = satellites.slice(0, 100);
+            topSatellites.forEach(sat => {
+                const option = document.createElement('option');
+                option.value = sat.name;
+                searchList.appendChild(option);
+            });
+        }
+    }
+
+    setupUI() {
+        // Search functionality
+        const searchBox = document.getElementById('searchBox');
+        if (searchBox) {
+            searchBox.addEventListener('input', (event) => {
+                const query = event.target.value.trim().toUpperCase();
+                if (query.length > 2) {
+                    const matches = satellites.filter(sat => 
+                        sat.name.toUpperCase().includes(query)
+                    ).slice(0, 10);
+                    console.log(`🔍 Found ${matches.length} matches for "${query}"`);
+                }
+            });
+
+            searchBox.addEventListener('change', (event) => {
+                const satName = event.target.value.trim().toUpperCase();
+                const satellite = satByName.get(satName);
+                if (satellite) {
+                    this.selectSatellite(satellite);
+                }
+            });
+        }
+
+        // UI buttons
+        const resetBtn = document.getElementById('resetViewBtn');
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => this.resetView());
+        }
+
+        const toggleBtn = document.getElementById('togglePanelBtn');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => {
+                const sidebar = document.getElementById('sidebar');
+                if (sidebar) {
+                    sidebar.classList.toggle('show');
+                }
+            });
+        }
+
+        // Click handling
+        if (viewer) {
+            viewer.screenSpaceEventHandler.setInputAction((event) => {
+                const picked = viewer.scene.pick(event.position);
+                if (picked && picked.primitive && picked.primitive instanceof Cesium.PointPrimitive) {
+                    // Find satellite by point
+                    for (const [name, data] of this.renderer.renderedSatellites) {
+                        if (data.point === picked.primitive) {
+                            this.selectSatellite(data.satellite);
+                            break;
+                        }
+                    }
+                }
+            }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+        }
+    }
+
     selectSatellite(satellite) {
         try {
             console.log(`🎯 Selected satellite: ${satellite.name}`);
@@ -654,7 +653,7 @@ class StarlinkRenderer {
             const infoPanel = document.getElementById('infoPanel');
             if (infoPanel) {
                 const now = new Date();
-                const position = this.calculatePosition(satellite.satrec, now);
+                const position = this.renderer.calculatePosition(satellite.satrec, now);
                 
                 let altitude = 'Calculating...';
                 let velocity = 'Calculating...';
@@ -680,10 +679,12 @@ class StarlinkRenderer {
                     }
                 }
 
+                const category = SATELLITE_CATEGORIES[satellite.category] || SATELLITE_CATEGORIES.OTHER;
+
                 infoPanel.innerHTML = `
                     <div class="info-header">
                         <h2>${satellite.name}</h2>
-                        <p>Starlink Satellite</p>
+                        <p>Category: ${category.name}</p>
                     </div>
                     
                     <div class="info-section">
@@ -729,22 +730,6 @@ class StarlinkRenderer {
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="info-section">
-                        <h3>ℹ️ TECHNICAL DATA</h3>
-                        <p class="info-text">
-                            Starlink satellites operate in a low Earth orbit (LEO) and use
-                            phased array antennas for high-speed, low-latency internet 
-                            connectivity. Each satellite weighs approximately 260 kg and 
-                            includes a compact flat-panel design with multiple high-throughput
-                            antennas and a single solar array.
-                        </p>
-                        <p class="info-text">
-                            <strong>TLE Data:</strong><br>
-                            <span class="code-text">${satellite.line1}</span><br>
-                            <span class="code-text">${satellite.line2}</span>
-                        </p>
-                    </div>
                 `;
             }
 
@@ -765,153 +750,7 @@ class StarlinkRenderer {
             }
 
         } catch (error) {
-            console.error('Error selecting satellite:', error);
-        }
-    }
-}
-
-// --- MAIN APPLICATION ---
-class StarlinkSimulator {
-    constructor() {
-        this.loadingManager = new LoadingStateManager();
-        this.errorManager = new ErrorManager();
-        this.dataManager = new SatelliteDataManager();
-        this.renderer = null;
-        this.updateInterval = null;
-        this.satellitesById = new Map();
-    }
-
-    async initialize() {
-        try {
-            this.loadingManager.showLoading('Initializing Starlink Simulator...');
-
-            // Initialize Cesium viewer
-            this.loadingManager.updateProgress('Creating 3D visualization...');
-            viewer = await StarlinkCesiumViewer.create('cesiumContainer');
-            this.renderer = new StarlinkRenderer(viewer);
-
-            // Load satellite data
-            this.loadingManager.updateProgress('Acquiring Starlink constellation data...');
-            await this.loadSatelliteData();
-
-            // Setup UI
-            this.loadingManager.updateProgress('Initializing user interface...');
-            this.setupUI();
-
-            // Start real-time updates
-            this.startUpdates();
-
-            this.loadingManager.hideLoading();
-            console.log('🎉 Starlink Simulator fully operational!');
-
-        } catch (error) {
-            this.errorManager.logError(error, 'Application initialization');
-            this.errorManager.showUserError(`Initialization failed: ${error.message}`);
-        }
-    }
-
-    async loadSatelliteData() {
-        try {
-            const tleData = await this.dataManager.fetchTLEData();
-            const parsedSatellites = this.dataManager.parseTLEData(tleData);
-            
-            if (parsedSatellites.length === 0) {
-                throw new Error('No valid Starlink satellites found in TLE data');
-            }
-
-            satellites = parsedSatellites;
-            
-            // Build ID lookup map
-            satellites.forEach(sat => {
-                this.satellitesById.set(sat.id, sat);
-            });
-
-            // Render satellites
-            this.renderer.renderSatellites(satellites);
-            
-            // Populate search
-            this.populateSearch();
-
-        } catch (error) {
-            throw new Error(`Failed to load satellite data: ${error.message}`);
-        }
-    }
-
-    populateSearch() {
-        const searchList = document.getElementById('satList');
-        if (searchList) {
-            searchList.innerHTML = '';
-            
-            // Add satellites for search
-            satellites.forEach(sat => {
-                const option = document.createElement('option');
-                option.value = sat.name;
-                searchList.appendChild(option);
-            });
-        }
-    }
-
-    setupUI() {
-        // Search functionality
-        const searchBox = document.getElementById('searchBox');
-        if (searchBox) {
-            searchBox.addEventListener('input', (event) => {
-                const query = event.target.value.trim().toUpperCase();
-                if (query.length > 2) {
-                    const matches = satellites.filter(sat => 
-                        sat.name.toUpperCase().includes(query)
-                    ).slice(0, 10);
-                    console.log(`🔍 Found ${matches.length} matches for "${query}"`);
-                }
-            });
-
-            searchBox.addEventListener('change', (event) => {
-                const satName = event.target.value.trim();
-                const satellite = satellites.find(sat => sat.name === satName);
-                if (satellite) {
-                    this.renderer.selectSatellite(satellite);
-                }
-            });
-        }
-
-        // UI buttons
-        const resetBtn = document.getElementById('resetViewBtn');
-        if (resetBtn) {
-            resetBtn.addEventListener('click', () => this.resetView());
-        }
-
-        const toggleBtn = document.getElementById('togglePanelBtn');
-        if (toggleBtn) {
-            toggleBtn.addEventListener('click', () => {
-                const sidebar = document.getElementById('sidebar');
-                if (sidebar) {
-                    sidebar.classList.toggle('show');
-                }
-            });
-        }
-        
-        const toggleThemeBtn = document.getElementById('toggleThemeBtn');
-        if (toggleThemeBtn) {
-            toggleThemeBtn.addEventListener('click', () => {
-                document.body.classList.toggle('light');
-                document.body.classList.toggle('dark');
-            });
-        }
-
-        // Click handling
-        if (viewer) {
-            viewer.screenSpaceEventHandler.setInputAction((event) => {
-                const picked = viewer.scene.pick(event.position);
-                if (picked && picked.primitive && picked.primitive instanceof Cesium.PointPrimitive) {
-                    // Find satellite by point
-                    for (const [id, data] of this.renderer.renderedSatellites) {
-                        if (data.point === picked.primitive) {
-                            this.renderer.selectSatellite(data.satellite);
-                            break;
-                        }
-                    }
-                }
-            }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+            this.errorManager.logError(error, 'Satellite selection');
         }
     }
 
@@ -923,8 +762,15 @@ class StarlinkSimulator {
             });
         }
 
-        // Show constellation stats
-        this.renderer.updateStatsDisplay(satellites.length);
+        const infoPanel = document.getElementById('infoPanel');
+        if (infoPanel) {
+            infoPanel.innerHTML = `
+                <div class="placeholder-text">
+                    <p>No satellite selected.</p>
+                    <span>Select a satellite from the globe or search to view detailed information.</span>
+                </div>
+            `;
+        }
     }
 
     startUpdates() {
@@ -950,7 +796,7 @@ class StarlinkSimulator {
 
 // --- APPLICATION STARTUP ---
 document.addEventListener('DOMContentLoaded', async () => {
-    const app = new StarlinkSimulator();
+    const app = new MissionControlApp();
     
     // Global error handling
     window.addEventListener('error', (event) => {
@@ -971,5 +817,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     await app.initialize();
     
     // Make app globally available for debugging
-    window.StarlinkSimulator = app;
+    window.MissionControl = app;
 });

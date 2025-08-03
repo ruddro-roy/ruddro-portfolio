@@ -3,6 +3,7 @@
  * Lightweight server for satellite tracking with CORS and TLE proxy
  */
 
+require('dotenv').config(); // Load environment variables from .env file
 const express = require('express');
 const fetch = require('node-fetch');
 const cors = require('cors');
@@ -21,8 +22,8 @@ app.use(cors({
 app.use(express.json());
 
 // Serve static files from multiple directories
-app.use('/starlink', express.static(path.join(__dirname, '../ruddro-future/starlink')));
-app.use('/', express.static(path.join(__dirname, '../ruddro-future')));
+app.use('/starlink', express.static(path.join(__dirname, 'public')));
+app.use('/', express.static(path.join(__dirname, 'public')));
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -32,6 +33,27 @@ app.get('/api/health', (req, res) => {
         service: 'mission-control-backend',
         version: '1.0.0'
     });
+});
+
+// Cesium proxy endpoint - using environment variable for token
+app.get('/api/cesium-proxy/*', async (req, res) => {
+  try {
+    const cesiumUrl = `https://api.cesium.com${req.params[0]}`;
+    const response = await fetch(cesiumUrl, {
+      headers: {
+        'Authorization': `Bearer ${process.env.CESIUM_TOKEN}`
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Cesium API responded with ${response.status}: ${response.statusText}`);
+    }
+    
+    res.json(await response.json());
+  } catch (error) {
+    console.error('Cesium proxy error:', error);
+    res.status(500).json({ error: 'Cesium API request failed', message: error.message });
+  }
 });
 
 // TLE data proxy with caching and fallbacks
@@ -197,10 +219,10 @@ app.get('/api/proxy/*', async (req, res) => {
     }
 });
 
-// Configuration endpoint for frontend
+// Configuration endpoint for frontend - using environment variable
 app.get('/api/config', (req, res) => {
     res.json({
-        cesiumToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJkYWY0MjU5MS1iNjkzLTQ1ZjMtYjc4Ni1hY2VjNWRmZTcxOGEiLCJpZCI6MjM3MjA5LCJpYXQiOjE3MzU0MTIzNzJ9.zM7_6cGPihCdnYNQJn6_l_TrReA4D1ohNJuqHyA4y_k',
+        cesiumToken: process.env.CESIUM_TOKEN,
         tleEndpoint: '/api/tle',
         proxyEndpoint: '/api/proxy',
         maxSatellites: 1000,
@@ -208,11 +230,11 @@ app.get('/api/config', (req, res) => {
     });
 });
 
-// Serve config as JavaScript for direct inclusion
+// Serve config as JavaScript for direct inclusion - using environment variable
 app.get('/config.js', (req, res) => {
     res.set('Content-Type', 'application/javascript');
     res.send(`
-window.CESIUM_ION_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJkYWY0MjU5MS1iNjkzLTQ1ZjMtYjc4Ni1hY2VjNWRmZTcxOGEiLCJpZCI6MjM3MjA5LCJpYXQiOjE3MzU0MTIzNzJ9.zM7_6cGPihCdnYNQJn6_l_TrReA4D1ohNJuqHyA4y_k";
+window.CESIUM_ION_TOKEN = "${process.env.CESIUM_TOKEN}";
 window.TLE_ENDPOINT = "/api/tle";
 window.PROXY_ENDPOINT = "/api/proxy";
 console.log("✅ Mission Control configuration loaded");

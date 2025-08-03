@@ -1,240 +1,59 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Starlink Constellation Simulator - Futuristic real-time 3D visualization surpassing academic limits by Ruddro Roy. Integrates relativistic corrections, ML-predicted orbits, and quantum-inspired debris sim.">
-    <title>Starlink Constellation Simulator - Ruddro Roy</title>
-    <link rel="icon" href="/favicon.ico" type="image/x-icon">
-    <script>
-        if (window.location.pathname.includes('.html')) {
-            window.location.replace(window.location.pathname.replace('.html', ''));
-        }
-    </script>
-    <style>
-        body { margin: 0; overflow: hidden; font-family: 'JetBrains Mono', monospace; color: #00ff00; background: #000; }
-        #renderer { width: 100vw; height: 100vh; }
-        #constellation-stats { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 10px; border: 1px solid #00ff00; border-radius: 4px; font-size: 12px; width: 220px; }
-        #controls-panel { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); padding: 10px; border: 1px solid #00ff00; border-radius: 4px; font-size: 12px; width: 180px; }
-        #system-status { position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.7); padding: 10px; border: 1px solid #00ff00; border-radius: 4px; font-size: 12px; width: 220px; }
-        #detail-panel { position: absolute; top: 150px; left: 10px; background: rgba(0,0,0,0.7); padding: 15px; border: 1px solid #00ff00; border-radius: 4px; width: 350px; display: none; }
-        #detail-panel h3 { margin: 0 0 10px; color: #00ff00; }
-        #detail-panel p { margin: 5px 0; font-size: 12px; }
-        #alert { position: absolute; top: 350px; left: 10px; color: red; background: rgba(255,0,0,0.4); padding: 8px; border-radius: 4px; display: none; }
-        #back { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0, 255, 0, 0.1); border: 1px solid #00ff00; color: #00ff00; padding: 10px 20px; border-radius: 4px; text-decoration: none; transition: all 0.3s; z-index: 1; }
-        #back:hover { background: #00ff00; color: #000; }
-        #toggle-buttons { position: absolute; bottom: 60px; left: 240px; background: rgba(0,0,0,0.7); padding: 10px; border: 1px solid #00ff00; border-radius: 4px; }
-        #toggle-buttons button { background: #00ff00; color: #000; border: none; padding: 6px 10px; margin: 3px; cursor: pointer; border-radius: 4px; font-size: 12px; }
-        #research-panel { position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.7); padding: 10px; border: 1px solid #00ff00; border-radius: 4px; font-size: 12px; width: 300px; display: none; }
-        #research-panel h4 { color: #00ff00; }
-    </style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mission Control | Real-Time Orbital Awareness</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Inconsolata:wght@400;700&display=swap" rel="stylesheet">
+
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    
+    <link href="style.css" rel="stylesheet" />
 </head>
-<body>
-    <div id="renderer"></div>
-    <div id="constellation-stats">
-        STARLINK CONSTELLATION<br>
-        Total Satellites: <span id="total-sats">0</span><br>
-        Orbital Shells: <span id="shells">0</span><br>
-        Average Altitude: <span id="avg-alt">0 km</span><br>
-        Orbital Period: <span id="avg-period">0 min</span><br>
-        Velocity: <span id="avg-vel">0 km/s</span><br>
-        Last Update: <span id="last-update">00:00:00</span>
+<body class="dark">
+
+    <div id="cesiumContainer"></div>
+
+    <aside id="sidebar">
+        <div class="sidebar-header">
+            <h1>Mission Control</h1>
+            <p>Real-time Situational Awareness</p>
+        </div>
+        
+        <div class="sidebar-content">
+            <div class="control-group">
+                <label for="searchBox">SATELLITE SEARCH</label>
+                <input id="searchBox" type="search" list="satList" placeholder="Enter satellite name..." />
+                <datalist id="satList"></datalist>
+            </div>
+
+            <div id="infoPanel">
+                <div class="placeholder-text">
+                    <p>No satellite selected.</p>
+                    <span>Select a satellite from the globe or the search bar to view detailed telemetry and orbital data.</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar-footer">
+             <button id="toggleThemeBtn" title="Toggle Dark/Light Theme">Toggle Theme</button>
+             <button id="resetViewBtn" title="Reset Camera View">Reset View</button>
+        </div>
+    </aside>
+
+    <button id="togglePanelBtn">☰</button>
+
+    <div id="loadingIndicator">
+        <div class="spinner"></div>
+        <p>Loading Orbital Data...</p>
     </div>
-    <div id="controls-panel">
-        CONTROLS<br>
-        Mouse: Rotate View<br>
-        Scroll: Zoom In/Out<br>
-        Auto-Rotate: <span id="auto-rotate-status">Enabled</span><br>
-        Update Rate: <span id="update-rate">5 seconds</span>
-    </div>
-    <div id="system-status">
-        SYSTEM STATUS<br>
-        FPS: <span id="fps">0</span><br>
-        Rendered Objects: <span id="rendered-objs">0</span><br>
-        Memory Usage: <span id="memory">Calculating...</span><br>
-        Connection: <span id="connection">Connected</span>
-    </div>
-    <div id="detail-panel">
-        <h3>Satellite Details</h3>
-        <p id="sat-name"></p>
-        <p id="sat-loc"></p>
-        <p id="sat-vel"></p>
-        <p id="sat-alt"></p>
-        <p id="sat-period"></p>
-        <p id="sat-inc"></p>
-        <p id="sat-ecc"></p>
-        <p id="sat-sma"></p>
-        <p id="sat-raan"></p>
-        <p id="sat-argp"></p>
-        <p id="sat-ma"></p>
-        <p id="sat-rel-dt"></p>
-        <p id="sat-ml-pred"></p>
-        <p id="sat-gr-orbit"></p>  <!-- Python-derived GR traj -->
-    </div>
-    <div id="alert">Collision Risk Alert: Proximity < 100 km</div>
-    <div id="toggle-buttons">
-        <button id="toggle-trails">Toggle Trails</button>
-        <button id="toggle-orbits">Toggle Orbits</button>
-        <button id="toggle-links">Toggle Links</button>
-        <button id="toggle-auto-rotate">Toggle Auto-Rotate</button>
-        <button id="toggle-debris">Toggle Debris Sim</button>
-        <button id="warp-to-sat">Warp to Selected Sat</button>
-        <button id="research-mode">Research Mode</button>
-    </div>
-    <div id="research-panel">
-        <h4>Research Insights</h4>
-        <p id="research-text">Click a sat to derive advanced physics...</p>
-    </div>
-    <a id="back" href="/">← Back to Portfolio</a>
 
-    <script src="https://unpkg.com/satellite.js"></script>
-    <script src="https://threejs.org/build/three.js"></script>
-    <script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script>
-        const EARTH_RADIUS = 6371;
-        const MU = 398600.4418;
-        const C = 299792.458;
-        const SCALE = 0.0001;
-        const COLLISION_THRESHOLD = 100;
-        const TRAIL_LENGTH = 20;
-        const ORBIT_STEPS = 360;
-        const LINK_THRESHOLD = 1000;
-        const DEBRIS_COUNT = 500;
-        const SHELL_ALT_TOL = 50;
-        const UPDATE_INTERVAL = 5000;
-
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        document.getElementById('renderer').appendChild(renderer.domElement);
-
-        const controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-
-        const loader = new THREE.TextureLoader();
-        const earthMaterial = new THREE.MeshPhongMaterial({
-            map: loader.load('https://threejs.org/examples/textures/land_ocean_ice_cloud_2048.jpg'),
-            normalMap: loader.load('https://threejs.org/examples/textures/earth_normal_2048.jpg'),
-            emissiveMap: loader.load('https://threejs.org/examples/textures/earth_at_night_2048.jpg'),
-            emissive: new THREE.Color(0x222222),
-            emissiveIntensity: 0.8,
-            shininess: 10
-        });
-        const earth = new THREE.Mesh(new THREE.SphereGeometry(EARTH_RADIUS * SCALE, 64, 64), earthMaterial);
-        scene.add(earth);
-
-        scene.add(new THREE.AmbientLight(0x404040));
-        const sunLight = new THREE.PointLight(0xffffff, 1.5);
-        sunLight.position.set(10000 * SCALE, 0, 0);
-        scene.add(sunLight);
-
-        const satGeometry = new THREE.SphereGeometry(5 * SCALE, 8, 8);
-        const satMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-        const satsInstanced = new THREE.InstancedMesh(satGeometry, satMaterial, 10000);
-        scene.add(satsInstanced);
-        const dummy = new THREE.Object3D();
-
-        const trailMaterial = new THREE.LineBasicMaterial({ color: 0xffff00 });
-        const trails = [];
-        for (let i = 0; i < 10000; i++) {
-            const trailGeometry = new THREE.BufferGeometry();
-            const positions = new Float32Array(TRAIL_LENGTH * 3);
-            trailGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            const trail = new THREE.Line(trailGeometry, trailMaterial);
-            scene.add(trail);
-            trails.push({ geom: trailGeometry, pos: positions, index: 0 });
-        }
-        let showTrails = true;
-
-        const orbitMaterial = new THREE.LineBasicMaterial({ color: 0x0000ff });
-        const orbits = [];
-        for (let i = 0; i < 10000; i++) {
-            const orbitGeometry = new THREE.BufferGeometry();
-            const positions = new Float32Array(ORBIT_STEPS * 3);
-            orbitGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            const orbitLine = new THREE.LineLoop(orbitGeometry, orbitMaterial);
-            scene.add(orbitLine);
-            orbits.push({ geom: orbitGeometry, pos: positions });
-        }
-        let showOrbits = false;
-
-        const linkMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
-        const linksGroup = new THREE.Group();
-        scene.add(linksGroup);
-        let showLinks = false;
-
-        const debrisGeometry = new THREE.SphereGeometry(3 * SCALE, 4, 4);
-        const debrisMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-        const debrisInstanced = new THREE.InstancedMesh(debrisGeometry, debrisMaterial, DEBRIS_COUNT);
-        scene.add(debrisInstanced);
-        let showDebris = false;
-        let debrisData = [];
-
-        const raycaster = new THREE.Raycaster();
-        const mouse = new THREE.Vector2();
-        let satData = [];
-        let prevPositions = [];
-        let selectedSat = null;
-
-        camera.position.z = EARTH_RADIUS * SCALE * 1.5;
-
-        let autoRotate = true;
-        let autoRotateSpeed = 0.00007292115;
-        let clock = new THREE.Clock();
-        let fps = 0;
-        let frameCount = 0;
-        let lastFpsTime = 0;
-
-        let mlModel;
-        async function initMLModel() {
-            mlModel = tf.sequential();
-            mlModel.add(tf.layers.dense({units: 32, activation: 'relu', inputShape: [6]}));  // Deeper for better pred (hidden layer)
-            mlModel.add(tf.layers.dense({units: 6}));
-            mlModel.compile({optimizer: 'adam', loss: 'meanSquaredError'});
-            // Train on dummy data; in real, use sat history
-            const xs = tf.tensor2d(Array.from({length: 10}, () => [Math.random()*EARTH_RADIUS, Math.random()*EARTH_RADIUS, EARTH_RADIUS, Math.random(), Math.random()*7.6, Math.random()]));
-            const ys = tf.tensor2d(Array.from({length: 10}, () => [Math.random()*10, Math.random()*10, Math.random()*10, Math.random(), Math.random(), Math.random()]));
-            await mlModel.fit(xs, ys, {epochs: 50});
-        }
-        initMLModel();
-
-        async function updatePositions() {
-            const response = await fetch('/positions');
-            const data = await response.json();
-            // Process data from backend (positions, gr_sol for selected, etc.)
-            satData = data.sats;
-            // Update instanced, trails, etc. as before (omit repeat code for brevity, integrate from previous)
-            // For GR from Python: if selectedSat, data.gr_sol plot as custom orbit line (odeint sol [t, [r,v]])
-            if (selectedSat !== null && data.gr_sol) {
-                const grOrbitGeom = new THREE.BufferGeometry();
-                const grPos = new Float32Array(data.gr_sol.length * 3);
-                data.gr_sol.forEach((point, j) => {
-                    grPos[j*3] = point[0] * SCALE;
-                    grPos[j*3+1] = point[1] * SCALE;
-                    grPos[j*3+2] = point[2] * SCALE;
-                });
-                grOrbitGeom.setAttribute('position', new THREE.BufferAttribute(grPos, 3));
-                const grOrbitLine = new THREE.Line(grOrbitGeom, new THREE.LineBasicMaterial({ color: 0xff00ff }));  // Magenta for GR
-                scene.add(grOrbitLine);
-                document.getElementById('sat-gr-orbit').textContent = `GR Traj Points: ${data.gr_sol.length} (PN accel integrated)`;
-            }
-            // ... (rest as previous, with quantum noise: for debris, add Gaussian)
-        }
-
-        // ... (animate, event listeners as previous)
-
-        updatePositions();
-        setInterval(updatePositions, UPDATE_INTERVAL);
-        animate();
-
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-    </script>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/satellite.js/4.1.4/satellite.min.js"></script>
+    
+    <script src="app.js"></script>
 </body>
 </html>

@@ -2,9 +2,9 @@
  * Mission Control: Enterprise Satellite Tracking Platform
  * * This script orchestrates the entire satellite tracking application. It handles:
  * - CesiumJS viewer initialization with high-fidelity visuals.
- * - Fetching and parsing satellite TLE data from CelesTrak.
+ * - Fetching and parsing TLE data for ALL active satellites from CelesTrak.
  * - Augmenting satellite data with detailed info from the CelesTrak SATCAT API.
- * - **INTEGRATION WITH GEMINI API for AI-powered mission briefings and explanations.**
+ * - Integration with the Gemini API for AI-powered mission briefings and explanations.
  * - Calculating and rendering smooth, full orbital paths for high performance.
  * - Managing user interactions (search, selection, camera control).
  * - Displaying detailed telemetry and metadata in a professional UI.
@@ -12,11 +12,10 @@
  */
 
 // --- CONFIGURATION & CONSTANTS ---
-// **PERFORMANCE FIX:** Changed the TLE_URL to load a smaller, faster dataset (100 brightest satellites)
-// to prevent the browser from freezing on startup.
-const TLE_URL = "https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle";
+// This URL loads the complete set of active satellites.
+const TLE_URL = "https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle";
 const SATCAT_URL_BASE = "https://celestrak.org/satcat/records.php";
-const SELECTED_SAT_ICON_URL = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZHRoPSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48bGluZSB4MT0iNSIgeTE9IjEyIiB4Mj0iMTkiIHkyPSIxMiI+PC9saW5lPjxsaW5lIHgxPSIxMiIgeTE9IjUiIHgyPSIxMiIgeTI9IjE5Ij48L2xpbmU+PC9zdmc+';
+const SELECTED_SAT_ICON_URL = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48bGluZSB4MT0iNSIgeTE9IjEyIiB4Mj0iMTkiIHkyPSIxMiI+PC9saW5lPjxsaW5lIHgxPSIxMiIgeTE9IjUiIHgyPSIxMiIgeTI9IjE5Ij48L2xpbmU+PC9zdmc+';
 
 const ORBIT_PROPAGATION_STEP_SECONDS = 60;
 const ORBIT_DURATION_PERIODS = 2;
@@ -30,15 +29,8 @@ let satcatCache = {};
 // =================================================================================
 // CRITICAL SECURITY INSTRUCTION
 // =================================================================================
-// 1. Go to https://cesium.com/ion/signup/ to create a free Cesium Ion account.
-// 2. Go to the "Access Tokens" page on your dashboard.
-// 3. Copy the "Default" access token.
-// 4. PASTE YOUR TOKEN INTO THE LINE BELOW.
-//
-// WARNING: NEVER COMMIT THIS FILE WITH YOUR REAL TOKEN TO A PUBLIC GITHUB REPO.
-// This will cause your token to be automatically revoked. For deployment,
-// always use a placeholder here and inject the real token via an environment
-// variable in your hosting provider's settings.
+// PASTE YOUR VALID CESIUM ION TOKEN HERE FOR LOCAL DEVELOPMENT.
+// For deployment, use an environment variable.
 // =================================================================================
 Cesium.Ion.defaultAccessToken = 'PASTE_YOUR_CESIUM_ION_TOKEN_HERE';
 // =================================================================================
@@ -59,11 +51,11 @@ viewer.scene.maximumRenderTimeChange = Infinity;
 document.addEventListener('DOMContentLoaded', () => {
     if (Cesium.Ion.defaultAccessToken === 'PASTE_YOUR_CESIUM_ION_TOKEN_HERE' || !Cesium.Ion.defaultAccessToken) {
         const loadingIndicator = document.getElementById('loadingIndicator');
-        loadingIndicator.innerHTML = `<p style="color:yellow; text-align:center;">CONFIGURATION NEEDED<br>Please add your Cesium Ion Access Token in app.js to load the globe.</p>`;
+        loadingIndicator.innerHTML = `<p style="color:yellow; text-align:center;">CONFIGURATION NEEDED<br>Please add your Cesium Ion Access Token in app.js.</p>`;
         return;
     }
     initUI();
-    setTimeout(loadAndInitializeSatellites, 500);
+    setTimeout(loadAndInitializeSatellites, 500); // Defer to allow UI to render first
 });
 
 /**
@@ -328,7 +320,6 @@ function displaySatelliteInfo(sat) {
             <div id="geminiResponse"></div>
         </div>`;
     
-    // Add event listeners for the new Gemini buttons
     document.getElementById('briefingBtn').addEventListener('click', () => handleGeminiRequest('briefing'));
     document.getElementById('orbitBtn').addEventListener('click', () => handleGeminiRequest('orbit'));
 
@@ -369,7 +360,7 @@ async function handleGeminiRequest(type) {
  * @returns {Promise<string>} The generated text response.
  */
 async function callGeminiAPI(prompt) {
-    const apiKey = ""; // Will be provided by the execution environment.
+    const apiKey = ""; // Provided by the execution environment.
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
 
     const payload = {
@@ -381,7 +372,7 @@ async function callGeminiAPI(prompt) {
     let response;
     let attempts = 0;
     const maxAttempts = 3;
-    let delay = 1000; // Initial delay of 1 second
+    let delay = 1000;
 
     while (attempts < maxAttempts) {
         try {
@@ -393,9 +384,7 @@ async function callGeminiAPI(prompt) {
 
             if (response.ok) {
                 const result = await response.json();
-                if (result.candidates && result.candidates.length > 0 &&
-                    result.candidates[0].content && result.candidates[0].content.parts &&
-                    result.candidates[0].content.parts.length > 0) {
+                if (result.candidates && result.candidates[0]?.content?.parts[0]?.text) {
                     return result.candidates[0].content.parts[0].text;
                 } else {
                     throw new Error("Invalid response structure from Gemini API");
@@ -410,7 +399,7 @@ async function callGeminiAPI(prompt) {
             }
             console.warn(`Attempt ${attempts} failed. Retrying in ${delay}ms...`);
             await new Promise(resolve => setTimeout(resolve, delay));
-            delay *= 2; // Exponential backoff
+            delay *= 2;
         }
     }
 }

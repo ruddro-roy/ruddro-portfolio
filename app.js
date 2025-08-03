@@ -37,7 +37,7 @@ let satcatCache = {};
 // always use a placeholder here and inject the real token via an environment
 // variable in your hosting provider's settings.
 // =================================================================================
-Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzY2FlZjgzZi1iYzVhLTQxZjEtYTdmMi1lYTFhOWE1OTFkNGYiLCJpZCI6MzI4MDcyLCJpYXQiOjE3NTQxNDk0NTR9.gxKHxL2Mcmgn6xwmWL0lE5LzPgsNh2hJkD1kvT1LZ3w';
+Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIyZDBhZThkMi1hODdkLTQ1YjMtYTNjMS1mMmI1ZjQ5ZGI2ZGMiLCJpZCI6MzI4MDcyLCJpYXQiOjE3NTQxNjk4MjB9.x0Lf8MuQAFYLBoKCkEHsUCot9HAiv3wZDQd0kLyk1pA';
 // =================================================================================
 
 // --- CESIUM INITIALIZATION ---
@@ -56,7 +56,7 @@ viewer.scene.maximumRenderTimeChange = Infinity;
 document.addEventListener('DOMContentLoaded', () => {
     //
     // Robust check to ensure the user has configured their access token.
-    if (Cesium.Ion.defaultAccessToken === 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzY2FlZjgzZi1iYzVhLTQxZjEtYTdmMi1lYTFhOWE1OTFkNGYiLCJpZCI6MzI4MDcyLCJpYXQiOjE3NTQxNDk0NTR9.gxKHxL2Mcmgn6xwmWL0lE5LzPgsNh2hJkD1kvT1LZ3w' || !Cesium.Ion.defaultAccessToken) {
+    if (Cesium.Ion.defaultAccessToken === 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIyZDBhZThkMi1hODdkLTQ1YjMtYTNjMS1mMmI1ZjQ5ZGI2ZGMiLCJpZCI6MzI4MDcyLCJpYXQiOjE3NTQxNjk4MjB9.x0Lf8MuQAFYLBoKCkEHsUCot9HAiv3wZDQd0kLyk1pA' || !Cesium.Ion.defaultAccessToken) {
         const loadingIndicator = document.getElementById('loadingIndicator');
         loadingIndicator.innerHTML = `<p style="color:yellow; text-align:center;">CONFIGURATION NEEDED<br>Please add your Cesium Ion Access Token in app.js to load the globe.</p>`;
         return;

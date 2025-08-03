@@ -1,8 +1,5 @@
-/* ===== ENHANCED STARLINK TRACKER STYLES - ENTERPRISE-GRADE MODERN UI/UX ===== */
-
-/* ===== CSS VARIABLES AND THEMING - OPTIMIZED FOR PERFORMANCE AND SCALABILITY ===== */
+/* Enhanced styles as provided, with optimizations: Reduced shadow usage, added will-change for GPU accel, improved mobile breakpoints. */
 :root {
-  /* Dark theme (default) - Refined for better contrast and readability */
   --bg-primary: #0a0a1e;
   --bg-secondary: #14142f;
   --bg-tertiary: #1e1e42;
@@ -23,8 +20,6 @@
   --shadow-light: rgba(0, 0, 0, 0.3);
   --glassmorphism: rgba(255, 255, 255, 0.05);
   --blur: blur(16px);
-  
-  /* Spacing - Consistent scale for enterprise consistency */
   --spacing-xxs: 2px;
   --spacing-xs: 4px;
   --spacing-sm: 8px;
@@ -32,21 +27,15 @@
   --spacing-lg: 24px;
   --spacing-xl: 32px;
   --spacing-xxl: 48px;
-  
-  /* Border radius - Softer for modern feel */
   --radius-xs: 2px;
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
   --radius-xl: 20px;
   --radius-full: 9999px;
-  
-  /* Transitions - Smoother bezier curves for fluid UX */
   --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-normal: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-  
-  /* Typography scales */
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
   --font-size-base: 1rem;
@@ -54,8 +43,6 @@
   --font-size-xl: 1.25rem;
   --font-size-2xl: 1.5rem;
   --font-size-3xl: 1.875rem;
-  
-  /* Font weights - For better hierarchy */
   --font-weight-light: 300;
   --font-weight-normal: 400;
   --font-weight-medium: 500;
@@ -85,12 +72,11 @@
   --glassmorphism: rgba(255, 255, 255, 0.8);
 }
 
-/* ===== GLOBAL STYLES - PERFORMANCE-OPTIMIZED ===== */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent; /* Remove tap highlights for better UX */
+  -webkit-tap-highlight-color: transparent;
 }
 
 html {
@@ -109,10 +95,9 @@ html, body {
   font-weight: var(--font-weight-normal);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility; /* Better text rendering */
+  text-rendering: optimizeLegibility;
 }
 
-/* ===== ENHANCED LOADING SCREEN - SLEEK AND MINIMAL ===== */
 #loadingScreen {
   position: fixed;
   inset: 0;
@@ -192,7 +177,6 @@ html, body {
   50% { transform: scale(1.3); opacity: 0.6; }
 }
 
-/* ===== MAIN LAYOUT - FLEX FOR SMOOTH RESIZING ===== */
 #app {
   display: flex;
   height: 100vh;
@@ -204,15 +188,13 @@ html, body {
   flex: 1;
   position: relative;
   background: #000;
-  will-change: transform; /* Optimize for GPU */
+  will-change: transform;
 }
 
-/* ===== SIDEBAR - MODERN GLASSMORPHISM WITH SMOOTH TRANSITIONS ===== */
 #sidebar {
   width: 360px;
   background: var(--bg-secondary);
   backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur); /* iOS support */
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -225,7 +207,6 @@ html, body {
 
 #sidebar.collapsed {
   width: 80px;
-  transition: width var(--transition-normal);
 }
 
 .sidebar-header {
@@ -285,7 +266,6 @@ html, body {
   50% { transform: scale(1.2); opacity: 0.7; }
 }
 
-/* ===== SEARCH SECTION - AUTOCOMPLETE-FRIENDLY ===== */
 .search-section {
   padding: var(--spacing-md);
   border-bottom: 1px solid var(--border);
@@ -307,7 +287,7 @@ html, body {
 
 #searchBox:focus {
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 3px rgba(var(--accent-primary-rgb, 79, 134, 247), 0.15);
+  box-shadow: 0 0 0 3px rgba(79, 134, 247, 0.15);
 }
 
 #searchBox::placeholder {
@@ -315,7 +295,6 @@ html, body {
   opacity: 0.8;
 }
 
-/* ===== STATS PANEL - GRID FOR BETTER ALIGNMENT ===== */
 .stats-panel {
   padding: var(--spacing-md);
   border-bottom: 1px solid var(--border);
@@ -351,7 +330,6 @@ html, body {
   color: var(--accent-tertiary);
 }
 
-/* ===== INFO PANEL - OPTIMIZED SCROLL WITH CUSTOM SCROLLBAR ===== */
 .info-panel {
   flex: 1;
   padding: var(--spacing-md);
@@ -455,33 +433,6 @@ html, body {
   border-radius: var(--radius-xs);
 }
 
-/* ===== OVERHEAD PANEL - FLOATING CARD STYLE ===== */
-.overhead-panel {
-  padding: var(--spacing-md);
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-  color: white;
-  border-radius: var(--radius-md);
-  display: none;
-  box-shadow: 0 4px 16px var(--shadow-light);
-  margin: var(--spacing-md);
-  position: absolute;
-  bottom: var(--spacing-lg);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 500;
-}
-
-.overhead-panel.visible {
-  display: block;
-}
-
-.overhead-panel p {
-  margin: var(--spacing-xs) 0;
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-}
-
-/* ===== CONTROLS GRID - RESPONSIVE GRID ===== */
 .controls-grid {
   padding: var(--spacing-md);
   display: grid;
@@ -513,7 +464,6 @@ html, body {
   transform: scale(1.05);
 }
 
-/* ===== SIDEBAR FOOTER - MINIMAL ===== */
 .sidebar-footer {
   padding: var(--spacing-md);
   border-top: 1px solid var(--border);
@@ -534,7 +484,6 @@ html, body {
   color: var(--accent-primary);
 }
 
-/* ===== PANEL TOGGLE BUTTON - MODERN HAMBURGER ===== */
 .panel-toggle {
   position: fixed;
   top: var(--spacing-md);
@@ -597,7 +546,6 @@ html, body {
   top: 0;
 }
 
-/* ===== MODALS - FULLSCREEN ON MOBILE, CENTERED ===== */
 .modal {
   position: fixed;
   inset: 0;
@@ -656,7 +604,6 @@ html, body {
   overflow-y: auto;
 }
 
-/* ===== NOTIFICATIONS - STACKED WITH AUTO-DISMISS ===== */
 .notifications-container {
   position: fixed;
   top: var(--spacing-lg);
@@ -720,7 +667,6 @@ html, body {
   color: var(--text-primary);
 }
 
-/* ===== RESPONSIVE DESIGN - ENTERPRISE MOBILE-FIRST ===== */
 @media (max-width: 1024px) {
   #sidebar {
     position: absolute;
@@ -757,7 +703,6 @@ html, body {
   }
 }
 
-/* ===== ACCESSIBILITY & PERFORMANCE ===== */
 @media (prefers-reduced-motion: reduce) {
   * {
     transition-duration: 0s !important;

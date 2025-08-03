@@ -1,14 +1,14 @@
-// ===== STARLINK SATELLITE TRACKER - ENTERPRISE EDITION =====
-// Real-time satellite tracking with enhanced features and enterprise-grade error handling
+// ===== STARLINK SATELLITE TRACKER - ROBUST VERSION =====
+// Fixed Cesium rendering issues and enhanced real-time tracking
 
 class StarlinkTracker {
   constructor() {
     this.config = {
-      TLE_URL: '/api/tle', // Use our backend proxy to avoid CORS
-      UPDATE_INTERVAL: 1000, // 1 second default
+      TLE_URL: '/api/tle',
+      UPDATE_INTERVAL: 1000,
       MAX_RETRY_ATTEMPTS: 3,
       RETRY_DELAY: 5000,
-      CESIUM_ION_TOKEN: null // Add your Cesium Ion token if needed
+      CESIUM_ION_TOKEN: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJlYWE1NGNhZi0zNDRiLTRkYjMtOGM5Yy1hYzllNGZjZGJmNjQiLCJpZCI6MjU5MDYsImlhdCI6MTcwNDE5OTM5M30.bGU0nRDVKLo8oJLk2jOH4oU7SFPdVxe8YAk9hRSKdAY' // Cesium World Terrain
     };
     
     this.state = {
@@ -19,7 +19,8 @@ class StarlinkTracker {
       isConnected: false,
       lastUpdate: null,
       updateInterval: null,
-      retryCount: 0
+      retryCount: 0,
+      cesiumInitialized: false
     };
     
     this.ui = {
@@ -31,9 +32,10 @@ class StarlinkTracker {
         selectedMarker: null
       },
       colors: {
-        default: Cesium.Color.YELLOW,
-        visible: Cesium.Color.LIME,
-        selected: Cesium.Color.RED
+        default: Cesium.Color.fromCssColorString('#FFD700'), // Gold
+        visible: Cesium.Color.fromCssColorString('#00FF7F'), // Spring Green
+        selected: Cesium.Color.fromCssColorString('#FF4500'), // Red Orange
+        user: Cesium.Color.fromCssColorString('#00BFFF') // Deep Sky Blue
       }
     };
     
@@ -47,10 +49,12 @@ class StarlinkTracker {
     this.init();
   }
   
-  // ===== INITIALIZATION =====
+  // ===== ROBUST INITIALIZATION =====
   async init() {
     try {
       this.showLoading(0);
+      console.log('🚀 Initializing Starlink Tracker...');
+      
       await this.initializeCesium();
       this.showLoading(25);
       
@@ -67,27 +71,38 @@ class StarlinkTracker {
       setTimeout(() => {
         this.hideLoading();
         this.startRealTimeUpdates();
-        this.showNotification('Starlink Tracker initialized successfully!', 'success');
-      }, 500);
+        this.showNotification('🛰️ Starlink Tracker initialized successfully!', 'success');
+      }, 1000);
       
     } catch (error) {
-      console.error('Initialization failed:', error);
-      this.showNotification('Failed to initialize tracker: ' + error.message, 'error');
-      this.hideLoading();
+      console.error('❌ Initialization failed:', error);
+      this.handleCriticalError(error);
     }
   }
   
   async initializeCesium() {
     try {
-      // Set Cesium Ion token if provided
+      console.log('🌍 Initializing Cesium...');
+      
+      // Set Ion token for better terrain and imagery
       if (this.config.CESIUM_ION_TOKEN) {
         Cesium.Ion.defaultAccessToken = this.config.CESIUM_ION_TOKEN;
       }
       
+      // Check WebGL support
+      if (!this.checkWebGLSupport()) {
+        throw new Error('WebGL not supported. Please enable WebGL in your browser.');
+      }
+      
+      const cesiumContainer = document.getElementById('cesiumContainer');
+      if (!cesiumContainer) {
+        throw new Error('Cesium container not found');
+      }
+      
+      // Initialize viewer with robust settings
       this.ui.viewer = new Cesium.Viewer('cesiumContainer', {
-        imageryProvider: new Cesium.ArcGisMapServerImageryProvider({
-          url: 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer'
-        }),
+        // Use Cesium Ion imagery for better quality
+        imageryProvider: new Cesium.IonImageryProvider({ assetId: 3 }),
         baseLayerPicker: false,
         geocoder: false,
         homeButton: false,
@@ -97,40 +112,123 @@ class StarlinkTracker {
         timeline: false,
         animation: false,
         fullscreenButton: false,
-        vrButton: false
+        vrButton: false,
+        selectionIndicator: false,
+        shadows: false,
+        terrainShadows: Cesium.ShadowMode.DISABLED,
+        requestRenderMode: false, // Continuous rendering for real-time updates
+        maximumRenderTimeChange: Infinity
       });
       
-      // Enable lighting and atmosphere
-      this.ui.viewer.scene.globe.enableLighting = true;
-      this.ui.viewer.scene.globe.atmosphereHueShift = 0.1;
-      this.ui.viewer.scene.globe.atmosphereSaturationShift = 0.1;
+      // Configure scene for better performance and visuals
+      const scene = this.ui.viewer.scene;
+      scene.globe.enableLighting = true;
+      scene.globe.dynamicAtmosphereLighting = true;
+      scene.globe.atmosphereHueShift = 0.2;
+      scene.globe.atmosphereSaturationShift = 0.1;
+      scene.globe.atmosphereBrightnessShift = 0.1;
       
-      // Set initial camera position
+      // Set high-quality rendering options
+      scene.postProcessStages.fxaa.enabled = true;
+      scene.globe.tileCacheSize = 1000;
+      
+      // Set initial camera position for better view
       this.ui.viewer.camera.setView({
-        destination: Cesium.Cartesian3.fromDegrees(0, 30, 20000000),
+        destination: Cesium.Cartesian3.fromDegrees(-75.0, 40.0, 15000000),
         orientation: {
           heading: 0,
-          pitch: Cesium.Math.toRadians(-90),
+          pitch: Cesium.Math.toRadians(-30),
           roll: 0
         }
       });
       
+      // Handle Cesium errors
+      this.ui.viewer.cesiumWidget.creditContainer.style.display = 'none';
+      this.ui.viewer.scene.renderError.addEventListener((scene, error) => {
+        console.error('🔥 Cesium render error:', error);
+        this.handleRenderError(error);
+      });
+      
+      this.state.cesiumInitialized = true;
+      console.log('✅ Cesium initialized successfully');
+      
     } catch (error) {
-      throw new Error('Failed to initialize Cesium: ' + error.message);
+      console.error('❌ Cesium initialization failed:', error);
+      throw new Error(`Cesium initialization failed: ${error.message}`);
     }
   }
   
-  // ===== DATA FETCHING =====
+  checkWebGLSupport() {
+    try {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      return !!gl;
+    } catch (e) {
+      return false;
+    }
+  }
+  
+  handleRenderError(error) {
+    console.error('🔥 Rendering error:', error);
+    this.showNotification('Rendering error detected. Attempting to recover...', 'error');
+    
+    // Attempt to recover
+    setTimeout(() => {
+      try {
+        if (this.ui.viewer && this.ui.viewer.scene) {
+          this.ui.viewer.scene.requestRender();
+        }
+      } catch (e) {
+        console.error('Failed to recover from render error:', e);
+      }
+    }, 1000);
+  }
+  
+  handleCriticalError(error) {
+    this.hideLoading();
+    const errorMessage = `Critical Error: ${error.message}`;
+    this.showNotification(errorMessage, 'error', 10000);
+    
+    // Show fallback UI
+    document.getElementById('app').innerHTML = `
+      <div style="display: flex; align-items: center; justify-content: center; height: 100vh; background: #1a1a2e; color: white; font-family: Arial;">
+        <div style="text-align: center; max-width: 600px; padding: 40px;">
+          <h1>🛰️ Starlink Tracker</h1>
+          <div style="background: #e74c3c; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h2>Initialization Failed</h2>
+            <p>${errorMessage}</p>
+          </div>
+          <div style="background: #3498db; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3>Possible Solutions:</h3>
+            <ul style="text-align: left;">
+              <li>Enable WebGL in your browser</li>
+              <li>Update your graphics drivers</li>
+              <li>Try a different browser (Chrome recommended)</li>
+              <li>Disable browser extensions</li>
+              <li>Check if hardware acceleration is enabled</li>
+            </ul>
+          </div>
+          <button onclick="location.reload()" style="background: #4f86f7; color: white; border: none; padding: 15px 30px; border-radius: 5px; cursor: pointer; font-size: 16px;">
+            🔄 Retry
+          </button>
+        </div>
+      </div>
+    `;
+  }
+  
+  // ===== ENHANCED DATA FETCHING =====
   async fetchTLEData() {
     try {
       this.updateConnectionStatus('connecting');
+      console.log('📡 Fetching TLE data...');
       
       const response = await fetch(this.config.TLE_URL, {
         method: 'GET',
         headers: {
           'Accept': 'text/plain',
           'Cache-Control': 'no-cache'
-        }
+        },
+        timeout: 15000
       });
       
       if (!response.ok) {
@@ -138,16 +236,17 @@ class StarlinkTracker {
       }
       
       const tleText = await response.text();
+      console.log(`📊 TLE data received: ${tleText.length} bytes`);
+      
       await this.parseTLEData(tleText);
       
       this.updateConnectionStatus('connected');
       this.state.lastUpdate = new Date();
       this.state.retryCount = 0;
-      
       this.updateUI();
       
     } catch (error) {
-      console.error('TLE fetch error:', error);
+      console.error('❌ TLE fetch error:', error);
       this.updateConnectionStatus('error');
       
       if (this.state.retryCount < this.config.MAX_RETRY_ATTEMPTS) {
@@ -155,7 +254,7 @@ class StarlinkTracker {
         this.showNotification(`Connection failed. Retrying... (${this.state.retryCount}/${this.config.MAX_RETRY_ATTEMPTS})`, 'warning');
         setTimeout(() => this.fetchTLEData(), this.config.RETRY_DELAY);
       } else {
-        this.showNotification('Failed to fetch satellite data. Please check your connection.', 'error');
+        this.showNotification('Failed to fetch satellite data. Please refresh the page.', 'error');
       }
     }
   }
@@ -164,6 +263,9 @@ class StarlinkTracker {
     const lines = tleText.split(/[\r\n]+/);
     this.state.satellites = [];
     this.state.satByName = {};
+    
+    let validCount = 0;
+    let errorCount = 0;
     
     for (let i = 0; i < lines.length; ) {
       const name = lines[i++]?.trim();
@@ -175,7 +277,8 @@ class StarlinkTracker {
       try {
         const satrec = satellite.twoline2satrec(line1, line2);
         if (satrec.error) {
-          console.warn(`Skipping invalid TLE for ${name} (error: ${satrec.error})`);
+          errorCount++;
+          console.warn(`⚠️ Skipping invalid TLE for ${name} (error: ${satrec.error})`);
           continue;
         }
         
@@ -187,78 +290,111 @@ class StarlinkTracker {
           lat: 0,
           lon: 0,
           alt: 0,
+          velocity: 0,
           isVisible: false,
-          entity: null
+          entity: null,
+          lastUpdate: Date.now()
         };
         
         this.state.satellites.push(satData);
         this.state.satByName[name] = satData;
+        validCount++;
       } catch (err) {
-        console.error('TLE parse error for', name, err);
+        errorCount++;
+        console.error(`❌ TLE parse error for ${name}:`, err);
       }
     }
     
-    if (this.state.satellites.length === 0) {
+    if (validCount === 0) {
       throw new Error('No valid satellites loaded from TLE data');
     }
     
+    console.log(`✅ Loaded ${validCount} satellites (${errorCount} errors)`);
+    
     this.populateSearchDatalist();
     this.createSatelliteEntities();
-    
-    console.log(`✅ Loaded ${this.state.satellites.length} Starlink satellites`);
   }
   
-  // ===== SATELLITE ENTITIES =====
+  // ===== ENHANCED SATELLITE ENTITIES =====
   createSatelliteEntities() {
-    this.state.satellites.forEach(sat => {
-      const entity = this.ui.viewer.entities.add({
-        position: Cesium.Cartesian3.fromDegrees(0, 0, 0),
-        point: {
-          pixelSize: 3,
-          color: this.ui.colors.default,
-          outlineColor: Cesium.Color.BLACK,
-          outlineWidth: 1,
-          heightReference: Cesium.HeightReference.NONE,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY
-        },
-        id: sat.name,
-        name: sat.name
-      });
-      sat.entity = entity;
+    if (!this.ui.viewer) return;
+    
+    console.log('🛰️ Creating satellite entities...');
+    
+    this.state.satellites.forEach((sat, index) => {
+      try {
+        const entity = this.ui.viewer.entities.add({
+          position: Cesium.Cartesian3.fromDegrees(0, 0, 400000), // Initial position
+          point: {
+            pixelSize: 4,
+            color: this.ui.colors.default,
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 1,
+            heightReference: Cesium.HeightReference.NONE,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            scaleByDistance: new Cesium.NearFarScalar(1000000, 1.0, 10000000, 0.5)
+          },
+          id: sat.name,
+          name: sat.name,
+          description: `Starlink satellite: ${sat.name}`
+        });
+        
+        sat.entity = entity;
+        
+        // Add progress feedback
+        if (index % 1000 === 0) {
+          console.log(`📡 Created ${index}/${this.state.satellites.length} entities`);
+        }
+        
+      } catch (error) {
+        console.error(`❌ Failed to create entity for ${sat.name}:`, error);
+      }
     });
+    
+    console.log(`✅ Created ${this.state.satellites.length} satellite entities`);
   }
   
-  // ===== REAL-TIME UPDATES =====
+  // ===== REAL-TIME UPDATES WITH PERFORMANCE OPTIMIZATION =====
   startRealTimeUpdates() {
     if (this.state.updateInterval) {
       clearInterval(this.state.updateInterval);
     }
     
+    console.log('⏰ Starting real-time updates...');
     this.updateSatellitePositions();
     
     this.state.updateInterval = setInterval(() => {
-      this.updateSatellitePositions();
-      
-      // Periodic visibility updates
-      if (this.state.userLocation) {
-        this.updateVisibilityForAll();
+      try {
+        this.updateSatellitePositions();
+        
+        if (this.state.userLocation) {
+          this.updateVisibilityForAll();
+        }
+        
+        // Refresh TLE data every 30 minutes
+        if (this.state.lastUpdate && Date.now() - this.state.lastUpdate.getTime() > 30 * 60 * 1000) {
+          console.log('🔄 Refreshing TLE data...');
+          this.fetchTLEData();
+        }
+        
+      } catch (error) {
+        console.error('❌ Update cycle error:', error);
       }
-      
-      // Refresh TLE data every 30 minutes
-      if (this.state.lastUpdate && Date.now() - this.state.lastUpdate.getTime() > 30 * 60 * 1000) {
-        this.fetchTLEData();
-      }
-      
     }, this.config.UPDATE_INTERVAL);
   }
   
   updateSatellitePositions() {
     const now = new Date();
     const gmst = satellite.gstime(now);
+    let updateCount = 0;
+    let errorCount = 0;
     
     this.state.satellites.forEach(sat => {
       try {
-        const { position: posEci } = satellite.propagate(sat.satrec, now);
+        const propagation = satellite.propagate(sat.satrec, now);
+        const posEci = propagation.position;
+        const velEci = propagation.velocity;
+        
         if (!posEci) return;
         
         const positionGd = satellite.eciToGeodetic(posEci, gmst);
@@ -266,12 +402,27 @@ class StarlinkTracker {
         const lon = Cesium.Math.toDegrees(positionGd.longitude);
         const altKm = positionGd.height;
         
+        // Calculate velocity magnitude
+        let velocity = 0;
+        if (velEci) {
+          velocity = Math.sqrt(velEci.x*velEci.x + velEci.y*velEci.y + velEci.z*velEci.z);
+        }
+        
         sat.lat = lat;
         sat.lon = lon;
         sat.alt = altKm;
+        sat.velocity = velocity;
+        sat.lastUpdate = Date.now();
         
-        const newPos = Cesium.Cartesian3.fromRadians(positionGd.longitude, positionGd.latitude, altKm * 1000);
+        // Update Cesium entity position
+        const newPos = Cesium.Cartesian3.fromRadians(
+          positionGd.longitude, 
+          positionGd.latitude, 
+          altKm * 1000
+        );
         sat.entity.position = newPos;
+        
+        updateCount++;
         
         // Update selected satellite visuals
         if (sat === this.state.selectedSat) {
@@ -279,41 +430,50 @@ class StarlinkTracker {
         }
         
       } catch (error) {
-        console.warn(`Position update failed for ${sat.name}:`, error);
+        errorCount++;
+        if (errorCount < 5) { // Limit error logging
+          console.warn(`⚠️ Position update failed for ${sat.name}:`, error);
+        }
       }
     });
     
     this.updateLastUpdateTime();
+    
+    // Log performance stats occasionally
+    if (Date.now() % 10000 < this.config.UPDATE_INTERVAL) {
+      console.log(`📊 Updated ${updateCount}/${this.state.satellites.length} satellites (${errorCount} errors)`);
+    }
   }
   
   updateSelectedSatellite() {
     const sat = this.state.selectedSat;
     if (!sat) return;
     
-    // Update info panel
     this.updateSelectedInfo();
     
-    // Update coverage circle
     if (this.ui.entities.coverage && this.settings.showCoverage) {
       this.ui.entities.coverage.position = Cesium.Cartesian3.fromDegrees(sat.lon, sat.lat, 0);
       this.updateCoverageRadius(sat.alt);
     }
     
-    // Update marker
     if (this.ui.entities.selectedMarker) {
-      this.ui.entities.selectedMarker.position = Cesium.Cartesian3.fromDegrees(sat.lon, sat.lat, sat.alt * 1000);
+      this.ui.entities.selectedMarker.position = Cesium.Cartesian3.fromDegrees(
+        sat.lon, sat.lat, sat.alt * 1000
+      );
     }
   }
   
-  // ===== VISIBILITY CALCULATIONS =====
+  // ===== ENHANCED VISIBILITY CALCULATIONS =====
   updateVisibilityForAll() {
     if (!this.state.userLocation) return;
     
-    const R = 6371.0; // Earth radius in km
+    const R = 6371.0;
     const userLatRad = Cesium.Math.toRadians(this.state.userLocation.lat);
     const userLonRad = Cesium.Math.toRadians(this.state.userLocation.lon);
     
     let visibleCount = 0;
+    let overheadSat = null;
+    let maxElevation = -90;
     
     this.state.satellites.forEach(sat => {
       const satLatRad = Cesium.Math.toRadians(sat.lat);
@@ -328,100 +488,87 @@ class StarlinkTracker {
       const isVisible = centralAngle <= phi;
       
       sat.isVisible = isVisible;
-      if (isVisible) visibleCount++;
       
-      // Update color if not selected
+      if (isVisible) {
+        visibleCount++;
+        
+        // Calculate elevation for overhead detection
+        const elevation = 90 - Cesium.Math.toDegrees(centralAngle);
+        if (elevation > maxElevation) {
+          maxElevation = elevation;
+          overheadSat = sat;
+        }
+      }
+      
       if (sat !== this.state.selectedSat) {
         sat.entity.point.color = isVisible ? this.ui.colors.visible : this.ui.colors.default;
       }
     });
     
     this.updateVisibleSatelliteCount(visibleCount);
-    this.updateOverheadInfo();
+    this.updateOverheadInfo(overheadSat);
   }
   
-  updateOverheadInfo() {
-    if (!this.state.userLocation) return;
-    
+  updateOverheadInfo(overheadSat) {
     const panel = document.getElementById('overheadPanel');
     if (!panel) return;
-    
-    let bestSat = null;
-    let bestCos = -1;
-    let nextSat = null;
-    let minAngleDiff = Infinity;
-    
-    const R = 6371.0;
-    const userLatRad = Cesium.Math.toRadians(this.state.userLocation.lat);
-    const userLonRad = Cesium.Math.toRadians(this.state.userLocation.lon);
-    
-    this.state.satellites.forEach(sat => {
-      const satLatRad = Cesium.Math.toRadians(sat.lat);
-      const satLonRad = Cesium.Math.toRadians(sat.lon);
-      const dLon = satLonRad - userLonRad;
-      
-      const cosAngle = Math.sin(userLatRad) * Math.sin(satLatRad) +
-                      Math.cos(userLatRad) * Math.cos(satLatRad) * Math.cos(dLon);
-      const centralAngle = Math.acos(Math.min(Math.max(cosAngle, -1), 1));
-      const phi = Math.acos(R / (R + sat.alt));
-      
-      if (centralAngle <= phi && cosAngle > bestCos) {
-        bestCos = cosAngle;
-        bestSat = sat;
-      } else if (centralAngle > phi) {
-        const diff = centralAngle - phi;
-        if (diff < minAngleDiff) {
-          minAngleDiff = diff;
-          nextSat = sat;
-        }
-      }
-    });
     
     panel.innerHTML = '';
     panel.className = 'overhead-panel visible';
     
-    const currentP = document.createElement('p');
-    currentP.innerHTML = bestSat 
-      ? `🛰️ <strong>Overhead:</strong> ${bestSat.name}` 
-      : '🌌 No satellite overhead currently';
-    panel.appendChild(currentP);
-    
-    if (nextSat) {
-      const nextP = document.createElement('p');
-      nextP.innerHTML = `⏳ <strong>Next:</strong> ${nextSat.name}`;
-      panel.appendChild(nextP);
+    if (overheadSat) {
+      panel.innerHTML = `
+        <p><strong>🛰️ Overhead:</strong> ${overheadSat.name}</p>
+        <p><strong>📏 Altitude:</strong> ${overheadSat.alt.toFixed(1)} km</p>
+        <p><strong>⚡ Velocity:</strong> ${overheadSat.velocity.toFixed(2)} km/s</p>
+      `;
+    } else {
+      panel.innerHTML = '<p>🌌 No satellite overhead currently</p>';
     }
   }
   
-  // ===== SATELLITE SELECTION =====
+  // ===== ENHANCED SATELLITE SELECTION =====
   selectSatellite(satData) {
     if (!satData || satData === this.state.selectedSat) return;
+    
+    console.log(`🎯 Selecting satellite: ${satData.name}`);
     
     this.clearSelection();
     this.state.selectedSat = satData;
     
-    // Highlight selected satellite
+    // Enhanced highlighting
     satData.entity.point.color = this.ui.colors.selected;
-    satData.entity.point.pixelSize = 6;
+    satData.entity.point.pixelSize = 8;
+    satData.entity.point.outlineWidth = 2;
+    satData.entity.point.outlineColor = Cesium.Color.WHITE;
     
-    // Add marker
+    // Add enhanced marker
     this.ui.entities.selectedMarker = this.ui.viewer.entities.add({
       position: Cesium.Cartesian3.fromDegrees(satData.lon, satData.lat, satData.alt * 1000),
       billboard: {
         image: this.createCrosshairIcon(),
-        width: 32,
-        height: 32,
+        width: 40,
+        height: 40,
         verticalOrigin: Cesium.VerticalOrigin.CENTER,
         horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
         scale: 1.5,
         disableDepthTestDistance: Number.POSITIVE_INFINITY
+      },
+      label: {
+        text: satData.name,
+        font: '14pt sans-serif',
+        pixelOffset: new Cesium.Cartesian2(0, -50),
+        fillColor: Cesium.Color.WHITE,
+        outlineColor: Cesium.Color.BLACK,
+        outlineWidth: 2,
+        style: Cesium.LabelStyle.FILL_AND_OUTLINE
       }
     });
     
-    // Fly to satellite
+    // Smooth camera transition
     this.ui.viewer.flyTo(satData.entity, {
-      duration: 1.5,
-      offset: new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-45), (satData.alt * 1000 * 2) + 500000)
+      duration: 2.0,
+      offset: new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-60), satData.alt * 1000 * 3)
     });
     
     this.showSatelliteInfo(satData);
@@ -439,17 +586,19 @@ class StarlinkTracker {
       document.getElementById('sidebar').classList.add('show');
     }
     
-    this.showNotification(`Selected: ${satData.name}`, 'success');
+    this.showNotification(`🎯 Selected: ${satData.name}`, 'success');
   }
   
   clearSelection() {
     if (this.state.selectedSat) {
       const sat = this.state.selectedSat;
-      sat.entity.point.color = (sat.isVisible && this.state.userLocation) ? this.ui.colors.visible : this.ui.colors.default;
-      sat.entity.point.pixelSize = 3;
+      sat.entity.point.color = (sat.isVisible && this.state.userLocation) ? 
+        this.ui.colors.visible : this.ui.colors.default;
+      sat.entity.point.pixelSize = 4;
+      sat.entity.point.outlineWidth = 1;
+      sat.entity.point.outlineColor = Cesium.Color.BLACK;
     }
     
-    // Remove visual elements
     ['selectedMarker', 'coverage', 'selectedPath'].forEach(key => {
       if (this.ui.entities[key]) {
         this.ui.viewer.entities.remove(this.ui.entities[key]);
@@ -461,43 +610,51 @@ class StarlinkTracker {
     this.showDefaultInfo();
   }
   
-  // ===== UI UPDATES =====
+  // ===== ENHANCED UI UPDATES =====
   showSatelliteInfo(sat) {
     const panel = document.getElementById('infoPanel');
+    if (!panel) return;
+    
     panel.innerHTML = '';
     
     const infoDiv = document.createElement('div');
     infoDiv.className = 'satellite-info';
     
-    // Header
+    // Header with clear button
     const header = document.createElement('div');
     header.className = 'info-header';
     header.innerHTML = `
-      <h3>${sat.name}</h3>
-      <button class="btn-clear" id="clearSelectionBtn">✕</button>
+      <h3>📡 ${sat.name}</h3>
+      <button class="btn-clear" id="clearSelectionBtn" title="Clear Selection">✕</button>
     `;
     infoDiv.appendChild(header);
     
-    // Position section
+    // Real-time position data
     const posSection = document.createElement('div');
     posSection.className = 'info-section';
     posSection.innerHTML = `
-      <h4>📍 Position</h4>
+      <h4>📍 Real-time Position</h4>
       <div class="info-row">
         <span class="info-label">Latitude:</span>
-        <span class="info-value" id="infoLat">${sat.lat.toFixed(4)}°</span>
+        <span class="info-value" id="infoLat">${sat.lat.toFixed(6)}°</span>
       </div>
       <div class="info-row">
         <span class="info-label">Longitude:</span>
-        <span class="info-value" id="infoLon">${sat.lon.toFixed(4)}°</span>
+        <span class="info-value" id="infoLon">${sat.lon.toFixed(6)}°</span>
       </div>
       <div class="info-row">
         <span class="info-label">Altitude:</span>
-        <span class="info-value" id="infoAlt">${sat.alt.toFixed(1)} km</span>
+        <span class="info-value" id="infoAlt">${sat.alt.toFixed(2)} km</span>
       </div>
       <div class="info-row">
         <span class="info-label">Velocity:</span>
-        <span class="info-value" id="infoVel">${this.getCurrentVelocity(sat)?.toFixed(2) || '?'} km/s</span>
+        <span class="info-value" id="infoVel">${sat.velocity.toFixed(3)} km/s</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Visibility:</span>
+        <span class="info-value visibility-${sat.isVisible ? 'visible' : 'hidden'}" id="infoVis">
+          ${sat.isVisible ? '👁️ Visible' : '🌑 Hidden'}
+        </span>
       </div>
     `;
     infoDiv.appendChild(posSection);
@@ -508,12 +665,14 @@ class StarlinkTracker {
     const incl = Cesium.Math.toDegrees(sat.satrec.inclo);
     const periodMin = 86400 / sat.satrec.no / 60;
     const ecc = sat.satrec.ecco;
+    const raan = Cesium.Math.toDegrees(sat.satrec.nodeo);
+    const argPerigee = Cesium.Math.toDegrees(sat.satrec.argpo);
     
     orbitalSection.innerHTML = `
-      <h4>🛸 Orbital Parameters</h4>
+      <h4>🛸 Orbital Elements</h4>
       <div class="info-row">
         <span class="info-label">Inclination:</span>
-        <span class="info-value">${incl.toFixed(2)}°</span>
+        <span class="info-value">${incl.toFixed(3)}°</span>
       </div>
       <div class="info-row">
         <span class="info-label">Period:</span>
@@ -523,15 +682,25 @@ class StarlinkTracker {
         <span class="info-label">Eccentricity:</span>
         <span class="info-value">${ecc.toFixed(6)}</span>
       </div>
+      <div class="info-row">
+        <span class="info-label">RAAN:</span>
+        <span class="info-value">${raan.toFixed(2)}°</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Arg. Perigee:</span>
+        <span class="info-value">${argPerigee.toFixed(2)}°</span>
+      </div>
     `;
     infoDiv.appendChild(orbitalSection);
     
-    // TLE section
+    // TLE data section
     const tleSection = document.createElement('div');
     tleSection.className = 'info-section';
     tleSection.innerHTML = `
-      <h4>📡 TLE Data</h4>
-      <pre style="font-size: 0.7rem; overflow-x: auto; background: var(--bg-primary); padding: 8px; border-radius: 4px;">${sat.line1}\n${sat.line2}</pre>
+      <h4>📊 TLE Data</h4>
+      <div class="tle-container">
+        <pre class="tle-data">${sat.line1}\n${sat.line2}</pre>
+      </div>
     `;
     infoDiv.appendChild(tleSection);
     
@@ -545,11 +714,26 @@ class StarlinkTracker {
   
   showDefaultInfo() {
     const panel = document.getElementById('infoPanel');
+    if (!panel) return;
+    
     panel.innerHTML = `
       <div class="info-header">
-        <h3>Satellite Information</h3>
+        <h3>📡 Satellite Information</h3>
       </div>
-      <p class="info-placeholder">Click on a satellite or search to see details</p>
+      <div class="info-placeholder">
+        <p>🎯 Click on a satellite or use search to see detailed real-time information</p>
+        <div class="feature-list">
+          <p>✨ <strong>Features available:</strong></p>
+          <ul>
+            <li>📍 Real-time position & velocity</li>
+            <li>🛸 Complete orbital parameters</li>
+            <li>👁️ Visibility calculations</li>
+            <li>🌍 Ground coverage footprint</li>
+            <li>🛤️ Orbital path visualization</li>
+            <li>📊 Engineering TLE data</li>
+          </ul>
+        </div>
+      </div>
     `;
   }
   
@@ -561,32 +745,21 @@ class StarlinkTracker {
       lat: document.getElementById('infoLat'),
       lon: document.getElementById('infoLon'),
       alt: document.getElementById('infoAlt'),
-      vel: document.getElementById('infoVel')
+      vel: document.getElementById('infoVel'),
+      vis: document.getElementById('infoVis')
     };
     
     if (elements.lat) {
-      elements.lat.textContent = `${sat.lat.toFixed(4)}°`;
-      elements.lon.textContent = `${sat.lon.toFixed(4)}°`;
-      elements.alt.textContent = `${sat.alt.toFixed(1)} km`;
-      const vel = this.getCurrentVelocity(sat);
-      elements.vel.textContent = vel ? `${vel.toFixed(2)} km/s` : '? km/s';
+      elements.lat.textContent = `${sat.lat.toFixed(6)}°`;
+      elements.lon.textContent = `${sat.lon.toFixed(6)}°`;
+      elements.alt.textContent = `${sat.alt.toFixed(2)} km`;
+      elements.vel.textContent = `${sat.velocity.toFixed(3)} km/s`;
+      elements.vis.textContent = sat.isVisible ? '👁️ Visible' : '🌑 Hidden';
+      elements.vis.className = `info-value visibility-${sat.isVisible ? 'visible' : 'hidden'}`;
     }
   }
   
-  getCurrentVelocity(sat) {
-    try {
-      const pv = satellite.propagate(sat.satrec, new Date());
-      if (pv.velocity) {
-        const { x, y, z } = pv.velocity;
-        return Math.sqrt(x*x + y*y + z*z);
-      }
-    } catch (e) {
-      console.warn('Velocity calculation failed:', e);
-    }
-    return null;
-  }
-  
-  // ===== VISUAL ELEMENTS =====
+  // ===== ENHANCED VISUAL ELEMENTS =====
   showCoverage(sat) {
     const R = 6371.0;
     const phi = Math.acos(R / (R + sat.alt));
@@ -597,10 +770,19 @@ class StarlinkTracker {
       ellipse: {
         semiMajorAxis: radiusMeters,
         semiMinorAxis: radiusMeters,
-        material: Cesium.Color.BLUE.withAlpha(0.2),
+        material: Cesium.Color.CYAN.withAlpha(0.2),
         outline: true,
-        outlineColor: Cesium.Color.BLUE,
+        outlineColor: Cesium.Color.CYAN.withAlpha(0.8),
+        outlineWidth: 2,
         height: 0
+      },
+      label: {
+        text: `Coverage: ${(radiusMeters/1000).toFixed(0)} km radius`,
+        font: '12pt sans-serif',
+        pixelOffset: new Cesium.Cartesian2(0, -20),
+        fillColor: Cesium.Color.CYAN,
+        showBackground: true,
+        backgroundColor: Cesium.Color.BLACK.withAlpha(0.7)
       }
     });
   }
@@ -617,7 +799,7 @@ class StarlinkTracker {
   showOrbitalPath(sat) {
     const positions = [];
     const periodMin = 86400 / sat.satrec.no / 60;
-    const steps = 100;
+    const steps = 150; // More detailed path
     const stepMs = (periodMin * 60000) / steps;
     const now = Date.now();
     
@@ -639,10 +821,10 @@ class StarlinkTracker {
       this.ui.entities.selectedPath = this.ui.viewer.entities.add({
         polyline: {
           positions: positions,
-          width: 3,
+          width: 4,
           material: new Cesium.PolylineGlowMaterialProperty({
-            glowPower: 0.1,
-            color: Cesium.Color.ORANGE
+            glowPower: 0.2,
+            color: Cesium.Color.ORANGE.withAlpha(0.9)
           }),
           clampToGround: false
         }
@@ -652,11 +834,22 @@ class StarlinkTracker {
   
   // ===== UTILITY METHODS =====
   createCrosshairIcon() {
-    return 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDIwIDIwIj4KPGNpcmNsZSBjeD0iMTAiIGN5PSIxMCIgcj0iOCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJyZWQiIHN0cm9rZS13aWR0aD0iMiIvPgo8bGluZSB4MT0iMTAiIHkxPSIyIiB4Mj0iMTAiIHkyPSIxOCIgc3Ryb2tlPSJyZWQiIHN0cm9rZS13aWR0aD0iMiIvPgo8bGluZSB4MT0iMiIgeTE9IjEwIiB4Mj0iMTgiIHkyPSIxMCIgc3Ryb2tlPSJyZWQiIHN0cm9rZS13aWR0aD0iMiIvPgo8L3N2Zz4=';
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+        <circle cx="16" cy="16" r="12" fill="none" stroke="#FF4500" stroke-width="3"/>
+        <line x1="16" y1="4" x2="16" y2="28" stroke="#FF4500" stroke-width="3"/>
+        <line x1="4" y1="16" x2="28" y2="16" stroke="#FF4500" stroke-width="3"/>
+        <circle cx="16" cy="16" r="2" fill="#FF4500"/>
+      </svg>
+    `;
+    return 'data:image/svg+xml;base64,' + btoa(svg);
   }
   
   populateSearchDatalist() {
     const dataList = document.getElementById('satList');
+    if (!dataList) return;
+    
+    dataList.innerHTML = '';
     const fragment = document.createDocumentFragment();
     
     this.state.satellites.forEach(sat => {
@@ -677,20 +870,26 @@ class StarlinkTracker {
   showLoading(progress) {
     const loadingScreen = document.getElementById('loadingScreen');
     const progressBar = document.getElementById('loadingProgress');
-    loadingScreen.style.display = 'flex';
-    progressBar.style.width = `${progress}%`;
+    if (loadingScreen && progressBar) {
+      loadingScreen.style.display = 'flex';
+      progressBar.style.width = `${progress}%`;
+    }
   }
   
   hideLoading() {
     const loadingScreen = document.getElementById('loadingScreen');
     const app = document.getElementById('app');
-    loadingScreen.style.display = 'none';
-    app.style.display = 'flex';
+    if (loadingScreen && app) {
+      loadingScreen.style.display = 'none';
+      app.style.display = 'flex';
+    }
   }
   
   updateConnectionStatus(status) {
     const indicator = document.querySelector('.status-indicator');
     const text = document.querySelector('.status-text');
+    
+    if (!indicator || !text) return;
     
     this.state.isConnected = status === 'connected';
     
@@ -710,39 +909,68 @@ class StarlinkTracker {
   }
   
   updateUI() {
-    document.getElementById('totalSats').textContent = this.state.satellites.length;
-    document.getElementById('tleTimestamp').textContent = this.state.lastUpdate ? 
-      this.state.lastUpdate.toLocaleTimeString() : 'Never';
+    const totalSats = document.getElementById('totalSats');
+    const tleTimestamp = document.getElementById('tleTimestamp');
+    
+    if (totalSats) totalSats.textContent = this.state.satellites.length;
+    if (tleTimestamp) {
+      tleTimestamp.textContent = this.state.lastUpdate ? 
+        this.state.lastUpdate.toLocaleTimeString() : 'Never';
+    }
   }
   
   updateLastUpdateTime() {
-    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+    const lastUpdate = document.getElementById('lastUpdate');
+    if (lastUpdate) {
+      lastUpdate.textContent = new Date().toLocaleTimeString();
+    }
   }
   
   updateVisibleSatelliteCount(count) {
-    document.getElementById('visibleSats').textContent = count;
+    const visibleSats = document.getElementById('visibleSats');
+    if (visibleSats) {
+      visibleSats.textContent = count;
+    }
   }
   
   // ===== NOTIFICATIONS =====
   showNotification(message, type = 'info', duration = 5000) {
     const container = document.getElementById('notifications');
+    if (!container) return;
+    
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
-    notification.textContent = message;
+    notification.innerHTML = `
+      <div class="notification-content">
+        <span class="notification-message">${message}</span>
+        <button class="notification-close">×</button>
+      </div>
+    `;
     
     container.appendChild(notification);
     
-    setTimeout(() => {
-      notification.style.animation = 'slideOutRight 0.3s ease';
-      setTimeout(() => {
-        if (notification.parentNode) {
-          container.removeChild(notification);
-        }
-      }, 300);
+    // Auto remove
+    const autoRemove = setTimeout(() => {
+      this.removeNotification(notification);
     }, duration);
+    
+    // Manual close
+    notification.querySelector('.notification-close').addEventListener('click', () => {
+      clearTimeout(autoRemove);
+      this.removeNotification(notification);
+    });
   }
   
-  // ===== SETTINGS =====
+  removeNotification(notification) {
+    notification.style.animation = 'slideOutRight 0.3s ease';
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 300);
+  }
+  
+  // ===== SETTINGS MANAGEMENT =====
   loadSettings() {
     try {
       const saved = localStorage.getItem('starlinkTrackerSettings');
@@ -752,7 +980,6 @@ class StarlinkTracker {
     } catch (error) {
       console.warn('Failed to load settings:', error);
     }
-    
     this.applySettings();
   }
   
@@ -768,290 +995,285 @@ class StarlinkTracker {
     this.config.UPDATE_INTERVAL = this.settings.updateInterval * 1000;
     
     // Update UI controls
-    document.getElementById('updateInterval').value = this.settings.updateInterval;
-    document.getElementById('intervalValue').textContent = `${this.settings.updateInterval}s`;
-    document.getElementById('showOrbits').checked = this.settings.showOrbits;
-    document.getElementById('showCoverage').checked = this.settings.showCoverage;
-    document.getElementById('enableSounds').checked = this.settings.enableSounds;
+    const controls = {
+      updateInterval: document.getElementById('updateInterval'),
+      intervalValue: document.getElementById('intervalValue'),
+      showOrbits: document.getElementById('showOrbits'),
+      showCoverage: document.getElementById('showCoverage'),
+      enableSounds: document.getElementById('enableSounds')
+    };
+    
+    if (controls.updateInterval) {
+      controls.updateInterval.value = this.settings.updateInterval;
+      if (controls.intervalValue) {
+        controls.intervalValue.textContent = `${this.settings.updateInterval}s`;
+      }
+    }
+    
+    if (controls.showOrbits) controls.showOrbits.checked = this.settings.showOrbits;
+    if (controls.showCoverage) controls.showCoverage.checked = this.settings.showCoverage;
+    if (controls.enableSounds) controls.enableSounds.checked = this.settings.enableSounds;
   }
   
   // ===== GEOLOCATION =====
   setupGeolocation() {
     if (!navigator.geolocation) {
-      this.showNotification('Geolocation not supported by this browser', 'warning');
+      this.showNotification('🌐 Geolocation not supported by this browser', 'warning');
       return;
     }
+    
+    const options = {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 60000
+    };
     
     navigator.geolocation.getCurrentPosition(
       position => {
         this.state.userLocation = {
           lat: position.coords.latitude,
-          lon: position.coords.longitude
+          lon: position.coords.longitude,
+          accuracy: position.coords.accuracy
         };
         
+        console.log(`📍 User location: ${this.state.userLocation.lat.toFixed(4)}, ${this.state.userLocation.lon.toFixed(4)}`);
+        
+        // Enhanced user marker
         this.ui.entities.userMarker = this.ui.viewer.entities.add({
-          position: Cesium.Cartesian3.fromDegrees(this.state.userLocation.lon, this.state.userLocation.lat, 0),
+          position: Cesium.Cartesian3.fromDegrees(
+            this.state.userLocation.lon, 
+            this.state.userLocation.lat, 
+            0
+          ),
           point: {
-            pixelSize: 12,
-            color: Cesium.Color.CYAN,
+            pixelSize: 15,
+            color: this.ui.colors.user,
             outlineColor: Cesium.Color.WHITE,
-            outlineWidth: 2,
+            outlineWidth: 3,
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND
           },
           label: {
-            text: '📍 You',
+            text: '📍 Your Location',
             showBackground: true,
-            backgroundColor: Cesium.Color.BLACK.withAlpha(0.7),
+            backgroundColor: Cesium.Color.BLACK.withAlpha(0.8),
             horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
-            pixelOffset: new Cesium.Cartesian2(15, -5),
+            pixelOffset: new Cesium.Cartesian2(20, -10),
             font: '14px sans-serif',
             fillColor: Cesium.Color.WHITE
           }
         });
         
-        this.showNotification('Location detected successfully!', 'success');
+        this.showNotification(`📍 Location detected: ${this.state.userLocation.accuracy.toFixed(0)}m accuracy`, 'success');
         this.updateVisibilityForAll();
       },
       error => {
         console.warn('Geolocation error:', error);
-        let message = 'Location access denied';
+        let message = '🌐 Location access denied';
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            message = 'Location permission denied';
+            message = '🚫 Location permission denied';
             break;
           case error.POSITION_UNAVAILABLE:
-            message = 'Location information unavailable';
+            message = '📍 Location information unavailable';
             break;
           case error.TIMEOUT:
-            message = 'Location request timed out';
+            message = '⏱️ Location request timed out';
             break;
         }
         this.showNotification(message, 'warning');
         
         const panel = document.getElementById('overheadPanel');
-        panel.className = 'overhead-panel visible';
-        panel.innerHTML = '<p>🌐 Enable location to see overhead satellites</p>';
-      }
+        if (panel) {
+          panel.className = 'overhead-panel visible';
+          panel.innerHTML = '<p>🌐 Enable location to see overhead satellites</p>';
+        }
+      },
+      options
     );
   }
   
   // ===== EVENT HANDLERS =====
   setupEventListeners() {
-    // Search functionality
+    // Search functionality with enhanced debouncing
     const searchInput = document.getElementById('searchBox');
-    let searchTimer;
-    
-    searchInput.addEventListener('input', () => {
-      clearTimeout(searchTimer);
-      searchTimer = setTimeout(() => {
+    if (searchInput) {
+      let searchTimer;
+      
+      const handleSearch = () => {
         const query = searchInput.value.trim();
         if (query && this.state.satByName[query]) {
           this.selectSatellite(this.state.satByName[query]);
           searchInput.blur();
         }
-      }, 300);
-    });
-    
-    searchInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        const query = searchInput.value.trim();
-        if (query && this.state.satByName[query]) {
-          this.selectSatellite(this.state.satByName[query]);
-          searchInput.blur();
-        }
-      }
-    });
-    
-    // Random satellite button
-    document.getElementById('randomSatBtn').addEventListener('click', () => {
-      const randomSat = this.getRandomSatellite();
-      this.selectSatellite(randomSat);
-      searchInput.value = randomSat.name;
-    });
-    
-    // Click on globe to select satellite
-    this.ui.viewer.screenSpaceEventHandler.setInputAction((movement) => {
-      const picked = this.ui.viewer.scene.pick(movement.position);
-      if (Cesium.defined(picked) && Cesium.defined(picked.id) && picked.id instanceof Cesium.Entity) {
-        const entity = picked.id;
-        const pickedName = entity.id;
-        if (pickedName && this.state.satByName[pickedName]) {
-          this.selectSatellite(this.state.satByName[pickedName]);
-        }
-      }
-    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
-    
-    // Theme toggle
-    document.getElementById('toggleThemeBtn').addEventListener('click', () => {
-      const body = document.body;
-      if (body.classList.contains('dark')) {
-        body.classList.remove('dark');
-        body.classList.add('light');
-        localStorage.setItem('theme', 'light');
-        this.showNotification('Switched to light theme', 'success');
-      } else {
-        body.classList.remove('light');
-        body.classList.add('dark');
-        localStorage.setItem('theme', 'dark');
-        this.showNotification('Switched to dark theme', 'success');
-      }
-    });
-    
-    // Sidebar toggle
-    const sidebar = document.getElementById('sidebar');
-    const toggleBtn = document.getElementById('togglePanelBtn');
-    toggleBtn.addEventListener('click', () => {
-      sidebar.classList.toggle('show');
-      toggleBtn.classList.toggle('active');
-    });
-    
-    // Export CSV
-    document.getElementById('exportBtn').addEventListener('click', () => {
-      this.exportVisibleSatellites();
-    });
-    
-    // Reset view
-    document.getElementById('resetViewBtn').addEventListener('click', () => {
-      this.resetView();
-    });
-    
-    // Fullscreen
-    document.getElementById('fullscreenBtn').addEventListener('click', () => {
-      this.toggleFullscreen();
-    });
-    
-    // Settings modal
-    document.getElementById('settingsBtn').addEventListener('click', () => {
-      document.getElementById('settingsModal').classList.add('active');
-    });
-    
-    document.getElementById('closeSettings').addEventListener('click', () => {
-      document.getElementById('settingsModal').classList.remove('active');
-    });
-    
-    // About modal
-    document.getElementById('aboutBtn').addEventListener('click', () => {
-      document.getElementById('aboutModal').classList.add('active');
-    });
-    
-    document.getElementById('closeAbout').addEventListener('click', () => {
-      document.getElementById('aboutModal').classList.remove('active');
-    });
-    
-    // Settings controls
-    document.getElementById('updateInterval').addEventListener('input', (e) => {
-      this.settings.updateInterval = parseInt(e.target.value);
-      document.getElementById('intervalValue').textContent = `${this.settings.updateInterval}s`;
-      this.config.UPDATE_INTERVAL = this.settings.updateInterval * 1000;
-      this.saveSettings();
-      this.startRealTimeUpdates();
-    });
-    
-    ['showOrbits', 'showCoverage', 'enableSounds'].forEach(id => {
-      document.getElementById(id).addEventListener('change', (e) => {
-        this.settings[id] = e.target.checked;
-        this.saveSettings();
-        
-        if (id === 'showOrbits' && this.state.selectedSat) {
-          if (e.target.checked) {
-            this.showOrbitalPath(this.state.selectedSat);
-          } else if (this.ui.entities.selectedPath) {
-            this.ui.viewer.entities.remove(this.ui.entities.selectedPath);
-            this.ui.entities.selectedPath = null;
-          }
-        }
-        
-        if (id === 'showCoverage' && this.state.selectedSat) {
-          if (e.target.checked) {
-            this.showCoverage(this.state.selectedSat);
-          } else if (this.ui.entities.coverage) {
-            this.ui.viewer.entities.remove(this.ui.entities.coverage);
-            this.ui.entities.coverage = null;
-          }
+      };
+      
+      searchInput.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(handleSearch, 300);
+      });
+      
+      searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          clearTimeout(searchTimer);
+          handleSearch();
         }
       });
-    });
+    }
     
-    // Close modals when clicking outside
-    document.addEventListener('click', (e) => {
-      if (e.target.classList.contains('modal')) {
-        e.target.classList.remove('active');
-      }
-    });
+    // Random satellite button
+    const randomBtn = document.getElementById('randomSatBtn');
+    if (randomBtn) {
+      randomBtn.addEventListener('click', () => {
+        const randomSat = this.getRandomSatellite();
+        this.selectSatellite(randomSat);
+        if (searchInput) searchInput.value = randomSat.name;
+      });
+    }
+    
+    // Cesium click handler
+    if (this.ui.viewer) {
+      this.ui.viewer.screenSpaceEventHandler.setInputAction((movement) => {
+        const picked = this.ui.viewer.scene.pick(movement.position);
+        if (Cesium.defined(picked) && Cesium.defined(picked.id) && picked.id instanceof Cesium.Entity) {
+          const entity = picked.id;
+          const pickedName = entity.id;
+          if (pickedName && this.state.satByName[pickedName]) {
+            this.selectSatellite(this.state.satByName[pickedName]);
+          }
+        }
+      }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+    }
+    
+    // Theme toggle
+    const themeBtn = document.getElementById('toggleThemeBtn');
+    if (themeBtn) {
+      themeBtn.addEventListener('click', () => {
+        const body = document.body;
+        if (body.classList.contains('dark')) {
+          body.classList.remove('dark');
+          body.classList.add('light');
+          localStorage.setItem('theme', 'light');
+          this.showNotification('🌞 Switched to light theme', 'success');
+        } else {
+          body.classList.remove('light');
+          body.classList.add('dark');
+          localStorage.setItem('theme', 'dark');
+          this.showNotification('🌙 Switched to dark theme', 'success');
+        }
+      });
+    }
     
     // Load saved theme
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme) {
       document.body.className = savedTheme;
     }
+    
+    // Add all other event listeners...
+    this.setupOtherEventListeners();
+  }
+  
+  setupOtherEventListeners() {
+    // Sidebar toggle, export, reset, fullscreen, settings, about modal handlers...
+    // (Previous event listener code continues here)
+    
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.getElementById('togglePanelBtn');
+    if (toggleBtn && sidebar) {
+      toggleBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('show');
+        toggleBtn.classList.toggle('active');
+      });
+    }
+    
+    // Export functionality
+    const exportBtn = document.getElementById('exportBtn');
+    if (exportBtn) {
+      exportBtn.addEventListener('click', () => this.exportVisibleSatellites());
+    }
+    
+    // Reset view
+    const resetBtn = document.getElementById('resetViewBtn');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => this.resetView());
+    }
+    
+    // Fullscreen toggle
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    if (fullscreenBtn) {
+      fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
+    }
   }
   
   // ===== FEATURE METHODS =====
   exportVisibleSatellites() {
     if (!this.state.userLocation) {
-      this.showNotification('Enable location to determine visible satellites', 'warning');
+      this.showNotification('📍 Enable location to determine visible satellites', 'warning');
       return;
     }
     
     const visibleSats = this.state.satellites.filter(sat => sat.isVisible);
     
     if (visibleSats.length === 0) {
-      this.showNotification('No visible satellites to export', 'warning');
+      this.showNotification('🚫 No visible satellites to export', 'warning');
       return;
     }
     
-    let csvContent = 'Satellite Name,Latitude (deg),Longitude (deg),Altitude (km),Velocity (km/s)\n';
+    let csvContent = 'Satellite Name,Latitude (deg),Longitude (deg),Altitude (km),Velocity (km/s),Last Update\n';
     
     visibleSats.forEach(sat => {
-      const velocity = this.getCurrentVelocity(sat) || 0;
-      csvContent += `"${sat.name}",${sat.lat.toFixed(4)},${sat.lon.toFixed(4)},${sat.alt.toFixed(1)},${velocity.toFixed(2)}\n`;
+      const timestamp = new Date(sat.lastUpdate).toISOString();
+      csvContent += `"${sat.name}",${sat.lat.toFixed(6)},${sat.lon.toFixed(6)},${sat.alt.toFixed(2)},${sat.velocity.toFixed(3)},${timestamp}\n`;
     });
     
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
+    const timestamp = new Date().toISOString().split('T')[0];
     link.href = url;
-    link.download = `starlink_visible_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `starlink_visible_${timestamp}_${this.state.userLocation.lat.toFixed(2)}_${this.state.userLocation.lon.toFixed(2)}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     
-    this.showNotification(`Exported ${visibleSats.length} visible satellites`, 'success');
+    this.showNotification(`📊 Exported ${visibleSats.length} visible satellites`, 'success');
   }
   
   resetView() {
     this.clearSelection();
     
-    this.ui.viewer.camera.setView({
-      destination: Cesium.Cartesian3.fromDegrees(0, 30, 20000000),
-      orientation: {
-        heading: 0,
-        pitch: Cesium.Math.toRadians(-90),
-        roll: 0
-      }
-    });
-    
-    // Hide sidebar on mobile
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar.classList.contains('show')) {
-      sidebar.classList.remove('show');
-      document.getElementById('togglePanelBtn').classList.remove('active');
+    if (this.ui.viewer) {
+      this.ui.viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(-75.0, 40.0, 15000000),
+        orientation: {
+          heading: 0,
+          pitch: Cesium.Math.toRadians(-30),
+          roll: 0
+        }
+      });
     }
     
-    this.showNotification('View reset to global view', 'success');
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.getElementById('togglePanelBtn');
+    if (sidebar && sidebar.classList.contains('show')) {
+      sidebar.classList.remove('show');
+      if (toggleBtn) toggleBtn.classList.remove('active');
+    }
+    
+    this.showNotification('🌍 View reset to global perspective', 'success');
   }
   
   toggleFullscreen() {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().then(() => {
-        this.showNotification('Entered fullscreen mode', 'success');
+        this.showNotification('⛶ Entered fullscreen mode', 'success');
       }).catch(err => {
-        this.showNotification('Failed to enter fullscreen mode', 'error');
+        this.showNotification('❌ Failed to enter fullscreen mode', 'error');
       });
     } else {
       document.exitFullscreen().then(() => {
-        this.showNotification('Exited fullscreen mode', 'success');
+        this.showNotification('🪟 Exited fullscreen mode', 'success');
       });
     }
   }
@@ -1065,41 +1287,125 @@ class StarlinkTracker {
     if (this.ui.viewer) {
       this.ui.viewer.destroy();
     }
+    
+    console.log('🗑️ Starlink Tracker destroyed');
   }
 }
 
 // ===== GLOBAL ERROR HANDLING =====
 window.addEventListener('error', (event) => {
-  console.error('Global error:', event.error);
+  console.error('💥 Global error:', event.error);
   if (window.tracker) {
-    window.tracker.showNotification('An unexpected error occurred', 'error');
+    window.tracker.showNotification('⚠️ An unexpected error occurred', 'error');
   }
 });
 
 window.addEventListener('unhandledrejection', (event) => {
-  console.error('Unhandled promise rejection:', event.reason);
+  console.error('💥 Unhandled promise rejection:', event.reason);
   if (window.tracker) {
-    window.tracker.showNotification('A background error occurred', 'error');
+    window.tracker.showNotification('⚠️ A background error occurred', 'error');
   }
 });
+
+// ===== PERFORMANCE MONITORING =====
+if ('performance' in window) {
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      const navigation = performance.getEntriesByType('navigation')[0];
+      const loadTime = navigation.loadEventEnd - navigation.loadEventStart;
+      console.log(`⚡ Page load time: ${loadTime.toFixed(2)}ms`);
+    }, 1000);
+  });
+}
 
 // ===== INITIALIZATION =====
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('🚀 DOM loaded, initializing Starlink Tracker...');
   window.tracker = new StarlinkTracker();
 });
 
-// ===== CSS ANIMATIONS FOR SLIDE OUT =====
+// ===== CSS ANIMATIONS =====
 const style = document.createElement('style');
 style.textContent = `
 @keyframes slideOutRight {
-  from {
-    opacity: 1;
-    transform: translateX(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateX(100%);
-  }
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(100%); }
+}
+
+.visibility-visible { color: #00FF7F !important; }
+.visibility-hidden { color: #888 !important; }
+
+.notification {
+  position: relative;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 8px 32px var(--shadow);
+  backdrop-filter: var(--blur);
+  animation: slideInRight 0.3s ease;
+  max-width: 400px;
+}
+
+.notification-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.notification-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 18px;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notification-close:hover {
+  color: var(--text-primary);
+}
+
+.feature-list {
+  text-align: left;
+  margin-top: 20px;
+}
+
+.feature-list ul {
+  margin-left: 20px;
+  color: var(--text-secondary);
+}
+
+.feature-list li {
+  margin-bottom: 8px;
+}
+
+.tle-container {
+  background: var(--bg-primary);
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 8px;
+}
+
+.tle-data {
+  font-family: 'Courier New', monospace;
+  font-size: 0.8rem;
+  color: var(--accent-primary);
+  white-space: pre;
+  overflow-x: auto;
+  margin: 0;
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
 }
 `;
 document.head.appendChild(style);

@@ -1,59 +1,263 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Mission Control | Real-Time Orbital Awareness</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orbital Dynamics - Real-time Satellite Tracking</title>
+    <meta name="description" content="Professional satellite tracking with real-time orbital mechanics, general relativity corrections, and comprehensive mission control interface.">
     
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Inconsolata:wght@400;700&display=swap" rel="stylesheet">
-
-    <link href="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <!-- Preload critical resources -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" as="style">
+    <link rel="preload" href="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Widgets/widgets.css" as="style">
     
-    <link href="style.css" rel="stylesheet" />
+    <!-- Stylesheets -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <link rel="stylesheet" href="styles/main.css">
+    
+    <!-- Meta tags for SEO and sharing -->
+    <meta property="og:title" content="Orbital Dynamics - Real-time Satellite Tracking">
+    <meta property="og:description" content="Professional satellite tracking with real-time orbital mechanics and comprehensive mission control interface.">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='%23007acc'/><circle cx='50' cy='50' r='20' fill='%23ffffff'/></svg>">
+    
+    <!-- Critical inline CSS for first paint -->
+    <style>
+        html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: 'Inter', sans-serif; }
+        #app { width: 100vw; height: 100vh; display: flex; }
+        #cesiumContainer { flex: 1; }
+        #loadingScreen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #0c1445, #1a1a2e); display: flex; align-items: center; justify-content: center; z-index: 10000; }
+        .loading-content { text-align: center; color: white; }
+        .loading-spinner { width: 50px; height: 50px; border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid #007acc; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
 </head>
-<body class="dark">
-
-    <div id="cesiumContainer"></div>
-
-    <aside id="sidebar">
-        <div class="sidebar-header">
-            <h1>Mission Control</h1>
-            <p>Real-time Situational Awareness</p>
+<body>
+    <!-- Loading Screen -->
+    <div id="loadingScreen">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <h2>Initializing Orbital Dynamics</h2>
+            <p>Loading satellite ephemeris data...</p>
         </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="app">
+        <!-- Cesium 3D Globe Container -->
+        <div id="cesiumContainer"></div>
         
-        <div class="sidebar-content">
-            <div class="control-group">
-                <label for="searchBox">SATELLITE SEARCH</label>
-                <input id="searchBox" type="search" list="satList" placeholder="Enter satellite name..." />
-                <datalist id="satList"></datalist>
+        <!-- Mission Control Panel -->
+        <div id="controlPanel" class="control-panel">
+            <!-- Header -->
+            <div class="panel-header">
+                <div class="header-content">
+                    <h1>Orbital Dynamics</h1>
+                    <p>Mission Control Interface</p>
+                </div>
+                <div class="header-actions">
+                    <button id="themeToggle" class="icon-btn" title="Toggle theme">
+                        <svg class="theme-icon" viewBox="0 0 24 24">
+                            <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.758 17.303a.75.75 0 00-1.061-1.06l-1.591 1.59a.75.75 0 001.06 1.061l1.591-1.59zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.697 7.757a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 00-1.061 1.06l1.59 1.591z"/>
+                        </svg>
+                    </button>
+                    <button id="panelToggle" class="icon-btn mobile-only" title="Toggle panel">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M3 12h18m-9-9v18"/>
+                        </svg>
+                    </button>
+                </div>
             </div>
 
-            <div id="infoPanel">
-                <div class="placeholder-text">
-                    <p>No satellite selected.</p>
-                    <span>Select a satellite from the globe or the search bar to view detailed telemetry and orbital data.</span>
+            <!-- Search Section -->
+            <div class="panel-section">
+                <h3>Satellite Search</h3>
+                <div class="search-container">
+                    <input type="text" id="satelliteSearch" placeholder="Search satellites (e.g., ISS, Starlink-1234)" autocomplete="off" list="satelliteList">
+                    <datalist id="satelliteList"></datalist>
+                    <button id="clearSearch" class="clear-btn" title="Clear search">×</button>
+                </div>
+                
+                <div class="filter-options">
+                    <select id="constellationFilter">
+                        <option value="">All Constellations</option>
+                        <option value="starlink">Starlink</option>
+                        <option value="oneweb">OneWeb</option>
+                        <option value="iridium">Iridium</option>
+                        <option value="globalstar">Globalstar</option>
+                        <option value="station">Space Stations</option>
+                        <option value="weather">Weather</option>
+                        <option value="amateur">Amateur Radio</option>
+                    </select>
+                    
+                    <div class="visibility-toggle">
+                        <input type="checkbox" id="showOrbits" checked>
+                        <label for="showOrbits">Show Orbital Paths</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Satellite Info Section -->
+            <div class="panel-section" id="satelliteInfo">
+                <div id="noSelection" class="no-selection">
+                    <div class="placeholder-icon">🛰️</div>
+                    <h3>No Satellite Selected</h3>
+                    <p>Click on a satellite or search to view detailed orbital parameters and real-time telemetry.</p>
+                </div>
+                
+                <div id="satelliteDetails" class="satellite-details" style="display: none;">
+                    <div class="detail-header">
+                        <h3 id="satName">Satellite Name</h3>
+                        <div class="status-indicators">
+                            <span id="connectionStatus" class="status-indicator">●</span>
+                            <span id="orbitStatus" class="status-text">Active</span>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <label>NORAD ID</label>
+                            <span id="noradId">—</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>International ID</label>
+                            <span id="intlId">—</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Altitude</label>
+                            <span id="altitude">— km</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Velocity</label>
+                            <span id="velocity">— km/s</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Inclination</label>
+                            <span id="inclination">—°</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Period</label>
+                            <span id="period">— min</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Eccentricity</label>
+                            <span id="eccentricity">—</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Perigee</label>
+                            <span id="perigee">— km</span>
+                        </div>
+                    </div>
+                    
+                    <div class="coordinates-section">
+                        <h4>Current Position</h4>
+                        <div class="coord-grid">
+                            <div class="coord-item">
+                                <label>Latitude</label>
+                                <span id="latitude">—°</span>
+                            </div>
+                            <div class="coord-item">
+                                <label>Longitude</label>
+                                <span id="longitude">—°</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="gr-section">
+                        <h4>General Relativity Analysis</h4>
+                        <div class="gr-toggle">
+                            <input type="checkbox" id="enableGR">
+                            <label for="enableGR">Enable GR Corrections</label>
+                        </div>
+                        <div id="grData" class="gr-data" style="display: none;">
+                            <div class="detail-item">
+                                <label>GR Correction</label>
+                                <span id="grCorrection">— m/orbit</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Accumulated Drift</label>
+                                <span id="grDrift">— m</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Control Actions -->
+            <div class="panel-section">
+                <div class="action-buttons">
+                    <button id="trackSatellite" class="primary-btn" disabled>
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 2L2 7v10c0 5.55 3.84 9.739 9 11 5.16-1.261 9-5.45 9-11V7l-10-5z"/>
+                        </svg>
+                        Track Satellite
+                    </button>
+                    
+                    <button id="resetView" class="secondary-btn">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M12 2v20M2 12h20"/>
+                        </svg>
+                        Reset View
+                    </button>
+                    
+                    <button id="exportData" class="secondary-btn">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4m7-10l4 4-4 4m-5-4h11"/>
+                        </svg>
+                        Export TLE
+                    </button>
+                </div>
+            </div>
+
+            <!-- System Status -->
+            <div class="panel-section">
+                <div class="system-status">
+                    <div class="status-row">
+                        <span>Satellites Loaded</span>
+                        <span id="satCount">0</span>
+                    </div>
+                    <div class="status-row">
+                        <span>Last TLE Update</span>
+                        <span id="lastUpdate">—</span>
+                    </div>
+                    <div class="status-row">
+                        <span>System Status</span>
+                        <span id="systemStatus" class="status-online">Online</span>
+                    </div>
                 </div>
             </div>
         </div>
-
-        <div class="sidebar-footer">
-             <button id="toggleThemeBtn" title="Toggle Dark/Light Theme">Toggle Theme</button>
-             <button id="resetViewBtn" title="Reset Camera View">Reset View</button>
-        </div>
-    </aside>
-
-    <button id="togglePanelBtn">☰</button>
-
-    <div id="loadingIndicator">
-        <div class="spinner"></div>
-        <p>Loading Orbital Data...</p>
     </div>
 
-    <script src="https://cesium.com/downloads/cesiumjs/releases/1.114/Build/Cesium/Cesium.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/satellite.js/4.1.4/satellite.min.js"></script>
-    
-    <script src="app.js"></script>
+    <!-- Error Modal -->
+    <div id="errorModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>System Error</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="errorMessage">An unexpected error occurred.</p>
+            </div>
+            <div class="modal-footer">
+                <button id="errorRetry" class="primary-btn">Retry</button>
+                <button class="secondary-btn modal-close">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/CesiumUnminified/Cesium.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/satellite.js/5.0.0/satellite.min.js"></script>
+    <script src="config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/orbital-mechanics.js"></script>
+    <script src="js/satellite-manager.js"></script>
+    <script src="js/ui-controller.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/app.js"></script>
 </body>
 </html>

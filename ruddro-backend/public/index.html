@@ -3,47 +3,185 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Starlink Satellite Tracker</title>
-  <!-- CesiumJS default CSS -->
+  <meta name="description" content="Real-time Starlink satellite tracking application with global coverage visualization" />
+  <meta name="keywords" content="starlink, satellite, tracking, space, real-time, cesium" />
+  <meta name="author" content="Starlink Tracker" />
+  
+  <!-- Open Graph Meta Tags -->
+  <meta property="og:title" content="Starlink Satellite Tracker" />
+  <meta property="og:description" content="Track Starlink satellites in real-time with global coverage visualization" />
+  <meta property="og:type" content="website" />
+  
+  <!-- Twitter Card Meta Tags -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Starlink Satellite Tracker" />
+  <meta name="twitter:description" content="Real-time satellite tracking application" />
+  
+  <title>Starlink Satellite Tracker - Real-time Global Coverage</title>
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/x-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDI0IDI0Ij48cGF0aCBmaWxsPSIjNGY4NmY3IiBkPSJNMTIgMmwtMS41IDQuNUw4IDVsMS41IDQuNUwxMiAxMGwxLjUtLjVMMTYgNWwtMi41IDEuNUwxMiAyeiIvPjwvc3ZnPg==" />
+  
+  <!-- CesiumJS CSS -->
   <link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.132.0/Widgets/widgets.css" rel="stylesheet" />
-  <!-- Custom app styles -->
+  
+  <!-- Custom Styles -->
   <link href="style.css" rel="stylesheet" />
 </head>
 <body class="dark">
-  <!-- Sidebar panel for controls and info -->
-  <div id="sidebar">
-    <h1>Starlink Tracker</h1>
-    <!-- Search input with datalist for suggestions -->
-    <input id="searchBox" type="search" list="satList" placeholder="Search satellite..." />
-    <datalist id="satList"></datalist>
-
-    <!-- Info panel showing details of selected satellite -->
-    <div id="infoPanel">
-      <p>Select a satellite to see details.</p>
-    </div>
-
-    <!-- Overhead satellite info panel (shown if location is enabled) -->
-    <div id="overheadPanel"></div>
-
-    <!-- Buttons for extra controls -->
-    <div id="controls">
-      <button id="toggleThemeBtn">Toggle Dark/Light</button>
-      <button id="exportBtn">Export Visible CSV</button>
-      <button id="resetViewBtn">Reset View</button>  <!-- New reset view button -->
+  <!-- Loading Screen -->
+  <div id="loadingScreen">
+    <div class="loader">
+      <div class="satellite-orbit">
+        <div class="satellite"></div>
+      </div>
+      <p>Loading Starlink Constellation...</p>
+      <div class="progress-bar">
+        <div class="progress-fill" id="loadingProgress"></div>
+      </div>
     </div>
   </div>
 
-  <!-- Globe container for Cesium -->
-  <div id="cesiumContainer"></div>
+  <!-- Main Application -->
+  <div id="app" style="display: none;">
+    <!-- Sidebar panel for controls and info -->
+    <div id="sidebar">
+      <div class="sidebar-header">
+        <h1>🛰️ Starlink Tracker</h1>
+        <div class="connection-status" id="connectionStatus">
+          <span class="status-indicator"></span>
+          <span class="status-text">Connecting...</span>
+        </div>
+      </div>
+      
+      <!-- Search Section -->
+      <div class="search-section">
+        <input id="searchBox" type="search" list="satList" placeholder="🔍 Search satellite..." autocomplete="off" />
+        <datalist id="satList"></datalist>
+        <button id="randomSatBtn" class="btn-secondary">🎲 Random Satellite</button>
+      </div>
+      
+      <!-- Quick Stats -->
+      <div id="quickStats" class="stats-panel">
+        <div class="stat-item">
+          <span class="stat-label">Total Satellites:</span>
+          <span class="stat-value" id="totalSats">Loading...</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Visible Now:</span>
+          <span class="stat-value" id="visibleSats">-</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Last Update:</span>
+          <span class="stat-value" id="lastUpdate">Never</span>
+        </div>
+      </div>
+      
+      <!-- Info panel showing details of selected satellite -->
+      <div id="infoPanel" class="info-panel">
+        <div class="info-header">
+          <h3>Satellite Information</h3>
+          <button id="clearSelectionBtn" class="btn-clear">✕</button>
+        </div>
+        <p class="info-placeholder">Click on a satellite or search to see details</p>
+      </div>
+      
+      <!-- Overhead satellite info panel -->
+      <div id="overheadPanel" class="overhead-panel"></div>
+      
+      <!-- Control buttons -->
+      <div id="controls" class="controls-grid">
+        <button id="toggleThemeBtn" class="btn-primary">🌓 Theme</button>
+        <button id="exportBtn" class="btn-primary">📊 Export CSV</button>
+        <button id="resetViewBtn" class="btn-primary">🌍 Reset View</button>
+        <button id="fullscreenBtn" class="btn-primary">⛶ Fullscreen</button>
+        <button id="settingsBtn" class="btn-primary">⚙️ Settings</button>
+        <button id="aboutBtn" class="btn-primary">ℹ️ About</button>
+      </div>
+      
+      <!-- Footer -->
+      <div class="sidebar-footer">
+        <p>Data: <a href="https://celestrak.org" target="_blank" rel="noopener">CelesTrak</a></p>
+        <p>Last TLE Update: <span id="tleTimestamp">Loading...</span></p>
+      </div>
+    </div>
 
-  <!-- Panel toggle button (visible on mobile to show/hide sidebar) -->
-  <button id="togglePanelBtn">☰</button>
+    <!-- Globe container for Cesium -->
+    <div id="cesiumContainer"></div>
 
-  <!-- CesiumJS library -->
+    <!-- Panel toggle button (visible on mobile) -->
+    <button id="togglePanelBtn" class="panel-toggle" aria-label="Toggle sidebar">
+      <span class="hamburger"></span>
+    </button>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Settings</h2>
+          <button class="modal-close" id="closeSettings">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="setting-group">
+            <label for="updateInterval">Update Interval (seconds):</label>
+            <input type="range" id="updateInterval" min="1" max="10" value="1" />
+            <span id="intervalValue">1s</span>
+          </div>
+          <div class="setting-group">
+            <label>
+              <input type="checkbox" id="showOrbits" checked />
+              Show orbital paths
+            </label>
+          </div>
+          <div class="setting-group">
+            <label>
+              <input type="checkbox" id="showCoverage" checked />
+              Show coverage areas
+            </label>
+          </div>
+          <div class="setting-group">
+            <label>
+              <input type="checkbox" id="enableSounds" />
+              Enable notification sounds
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- About Modal -->
+    <div id="aboutModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>About Starlink Tracker</h2>
+          <button class="modal-close" id="closeAbout">✕</button>
+        </div>
+        <div class="modal-body">
+          <p>Real-time Starlink satellite tracking application built with CesiumJS and modern web technologies.</p>
+          <h3>Features:</h3>
+          <ul>
+            <li>🌍 Real-time satellite positions</li>
+            <li>🛰️ Interactive 3D globe visualization</li>
+            <li>📡 Visibility calculations from your location</li>
+            <li>🎯 Satellite search and selection</li>
+            <li>📊 Orbital parameters and TLE data</li>
+            <li>📱 Responsive design for all devices</li>
+          </ul>
+          <h3>Data Sources:</h3>
+          <p>Satellite data provided by <a href="https://celestrak.org" target="_blank" rel="noopener">CelesTrak</a></p>
+          <h3>Version:</h3>
+          <p>1.0.0 - Enterprise Edition</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notifications" class="notifications-container"></div>
+  </div>
+
+  <!-- Scripts -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.132.0/Cesium.js"></script>
-  <!-- Satellite.js library for SGP4 calculations -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/satellite.js/4.0.0/satellite.min.js"></script>
-  <!-- Application script -->
   <script src="app.js"></script>
 </body>
 </html>

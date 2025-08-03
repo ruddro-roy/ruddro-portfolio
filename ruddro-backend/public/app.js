@@ -1,622 +1,585 @@
-// ===== STARLINK SATELLITE TRACKER - ENTERPRISE-GRADE VERSION =====
-// Enhanced for robust deployment, using public Celestrak supplemental TLE source for real-time precision
-// Added next pass prediction, full satellite list panel, stunning visuals with better imagery and effects
-// Note: For Cesium Ion assets, sign up for a free account at https://cesium.com/ion/ and set CESIUM_ION_TOKEN in config
-// Without token, falls back to public ArcGIS imagery
+// Configuration and Initialization
+const TLE_URL = "https://celestrak.org/NORAD/elements/supplemental/sup-gp.php?FILE=starlink&FORMAT=tle";
 
-class StarlinkTracker {
-  constructor() {
-    this.config = {
-      TLE_URL: 'https://celestrak.org/NORAD/elements/supplemental/sup-gp.php?FILE=starlink&FORMAT=tle', // Public Celestrak supplemental for all Starlink
-      CESIUM_ION_TOKEN: '', // Set your free Cesium Ion token here for high-quality imagery/terrain
-      UPDATE_INTERVAL: 1000, // Position updates in ms
-      TLE_REFRESH_INTERVAL: 1800000, // 30 min TLE refresh
-      PASS_PREDICTION_HORIZON: 3600, // 1 hour ahead for next pass in seconds
-      MAX_RETRY_ATTEMPTS: 5,
-      RETRY_DELAY: 3000,
-      MAX_SATELLITES_TO_RENDER: 10000, // Increased for full constellation if hardware allows
-    };
+// Initialize Cesium Viewer
+const viewer = new Cesium.Viewer("cesiumContainer", {
+  imageryProvider: new Cesium.ArcGisMapServerImageryProvider({
+    url: 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer'
+  }),
+  baseLayerPicker: false, geocoder: false, homeButton: false,
+  infoBox: false, navigationHelpButton: false, sceneModePicker: false,
+  timeline: false, animation: false
+});
+viewer.scene.globe.enableLighting = true;  // day/night lighting on globe
 
-    this.state = {
-      satellites: [],
-      satByName: {},
-      selectedSat: null,
-      userLocation: null,
-      nextPass: null, // {sat, time, duration}
-      isConnected: false,
-      lastUpdate: null,
-      updateInterval: null,
-      tleRefreshInterval: null,
-      retryCount: 0,
-      cesiumInitialized: false,
-      webGLSupported: false,
-    };
+// Data storage
+let satellites = [];
+let satByName = {};
+let selectedSat = null;
+let coverageEntity = null;
+let selectedPath = null;
+let userLocation = null;
+let userMarker = null;
+let selectedMarker = null;  // marker for selected satellite (billboard icon)
 
-    this.ui = {
-      viewer: null,
-      entities: {
-        coverage: null,
-        selectedPath: null,
-        userMarker: null,
-        selectedMarker: null,
+const colorDefault = Cesium.Color.YELLOW;
+const colorVisible = Cesium.Color.LIME;
+const colorSelected = Cesium.Color.RED;
+const crosshairIcon = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDIwIDIwIj4KPGNpcmNsZSBjeD0iMTAiIGN5PSIxMCIgcj0iOCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJyZWQiIHN0cm9rZS13aWR0aD0iMiIvPgo8bGluZSB4MT0iMTAiIHkxPSIyIiB4Mj0iMTAiIHkyPSIxOCIgc3Ryb2tlPSJyZWQiIHN0cm9rZS13aWR0aD0iMiIvPgo8bGluZSB4MT0iMiIgeTE9IjEwIiB4Mj0iMTgiIHkyPSIxMCIgc3Ryb2tlPSJyZWQiIHN0cm9rZS13aWR0aD0iMiIvPgo8L3N2Zz4=';
+
+// 1. Fetch TLE data for all Starlink satellites
+fetch(TLE_URL).then(res => {
+  if (!res.ok) throw new Error(`TLE fetch failed: ${res.status} ${res.statusText}`);
+  return res.text();
+}).then(tleText => {
+  const lines = tleText.split(/[\r\n]+/);
+  for (let i = 0; i < lines.length; ) {
+    const name = lines[i++].trim();
+    const line1 = lines[i++]?.trim();
+    const line2 = lines[i++]?.trim();
+    if (!name || !line1 || !line2) break;
+    try {
+      const satrec = satellite.twoline2satrec(line1, line2);
+      if (satrec.error) {
+        console.warn(`Skipping invalid TLE for ${name} (error: ${satrec.error})`);
+        continue;
+      }
+      const satData = { name, line1, line2, satrec };
+      satellites.push(satData);
+      satByName[name] = satData;
+    } catch (err) {
+      console.error("TLE parse error for", name, err);
+    }
+  }
+  console.log(`Loaded ${satellites.length} Starlink satellites.`);
+  if (!satellites.length) {
+    console.warn("No satellites loaded. Check TLE source.");
+  }
+  populateDatalist();
+  createSatelliteEntities();
+  startSimulation();
+}).catch(err => {
+  console.error("Failed to load TLE data:", err);
+});
+
+// 2. Populate the datalist for search suggestions
+function populateDatalist() {
+  const dataList = document.getElementById("satList");
+  const fragment = document.createDocumentFragment();
+  satellites.forEach(sat => {
+    const opt = document.createElement("option");
+    opt.value = sat.name;
+    fragment.appendChild(opt);
+  });
+  dataList.appendChild(fragment);
+}
+
+// 3. Create Cesium point entities for each satellite
+function createSatelliteEntities() {
+  satellites.forEach(sat => {
+    const entity = viewer.entities.add({
+      position: Cesium.Cartesian3.fromDegrees(0, 0, 0),  // temp position, will update
+      point: {
+        pixelSize: 3,
+        color: colorDefault,
+        outlineColor: Cesium.Color.BLACK,
+        outlineWidth: 1
       },
-      colors: {
-        default: Cesium.Color.fromCssColorString('#FFD700'),
-        visible: Cesium.Color.fromCssColorString('#00FF7F'),
-        selected: Cesium.Color.fromCssColorString('#FF4500'),
-        user: Cesium.Color.fromCssColorString('#00BFFF'),
-      },
-    };
-
-    this.settings = {
-      showOrbits: true,
-      showCoverage: true,
-      enableSounds: false,
-      updateInterval: 1,
-    };
-
-    this.init();
-  }
-
-  // ===== ROBUST INITIALIZATION =====
-  async init() {
-    try {
-      this.showLoading(0);
-      console.log('🚀 Initializing Enterprise Starlink Tracker...');
-
-      this.state.webGLSupported = this.checkWebGLSupport();
-      if (!this.state.webGLSupported) {
-        throw new Error('WebGL not supported. Falling back to non-3D mode.');
-      }
-
-      await this.initializeCesium();
-      this.showLoading(25);
-
-      await this.loadSettings();
-      this.showLoading(50);
-
-      await this.fetchTLEData();
-      this.showLoading(75);
-
-      this.setupEventListeners();
-      this.setupGeolocation();
-      this.showLoading(100);
-
-      setTimeout(() => {
-        this.hideLoading();
-        this.startRealTimeUpdates();
-        this.showSatelliteList();
-        this.showNotification('🛰️ Starlink Tracker initialized successfully!', 'success');
-      }, 1000);
-    } catch (error) {
-      console.error('❌ Initialization failed:', error);
-      this.handleCriticalError(error);
-    }
-  }
-
-  async initializeCesium() {
-    try {
-      console.log('🌍 Initializing Cesium...');
-
-      const cesiumContainer = document.getElementById('cesiumContainer');
-      if (!cesiumContainer) {
-        throw new Error('Cesium container not found');
-      }
-
-      // Set Ion token if provided
-      if (this.config.CESIUM_ION_TOKEN) {
-        Cesium.Ion.defaultAccessToken = this.config.CESIUM_ION_TOKEN;
-      }
-
-      let imageryProvider;
-      if (this.config.CESIUM_ION_TOKEN) {
-        // Use high-quality Ion imagery if token available
-        imageryProvider = await Cesium.IonImageryProvider.fromAssetId(2); // Bing Maps Aerial
-      } else {
-        // Fallback to public ArcGIS
-        imageryProvider = new Cesium.ArcGisMapServerImageryProvider({
-          url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer',
-        });
-      }
-
-      let terrainProvider;
-      if (this.config.CESIUM_ION_TOKEN) {
-        terrainProvider = await Cesium.createWorldTerrainAsync();
-      } else {
-        terrainProvider = new Cesium.EllipsoidTerrainProvider();
-      }
-
-      this.ui.viewer = new Cesium.Viewer('cesiumContainer', {
-        imageryProvider,
-        terrainProvider,
-        baseLayerPicker: false,
-        geocoder: false,
-        homeButton: false,
-        infoBox: false,
-        navigationHelpButton: false,
-        sceneModePicker: false,
-        timeline: false,
-        animation: false,
-        fullscreenButton: false,
-        vrButton: false,
-        selectionIndicator: false,
-        shadows: true,
-        terrainShadows: Cesium.ShadowMode.ENABLED,
-        requestRenderMode: false,
-        maximumRenderTimeChange: Infinity,
-      });
-
-      // Enhance scene for stunning visuals
-      const scene = this.ui.viewer.scene;
-      scene.globe.enableLighting = true;
-      scene.globe.dynamicAtmosphereLighting = true;
-      scene.highDynamicRange = true;
-      scene.skyAtmosphere.hueShift = -0.1;
-      scene.skyAtmosphere.saturationShift = -0.2;
-      scene.skyAtmosphere.brightnessShift = 0.1;
-      scene.fog.enabled = true;
-      scene.fog.density = 0.0001;
-      scene.postProcessStages.fxaa.enabled = true;
-      scene.globe.tileCacheSize = 2000;
-
-      // Initial view
-      this.ui.viewer.camera.setView({
-        destination: Cesium.Cartesian3.fromDegrees(0, 0, 20000000),
-        orientation: {
-          heading: 0,
-          pitch: Cesium.Math.toRadians(-45),
-          roll: 0,
-        },
-      });
-
-      this.ui.viewer.cesiumWidget.creditContainer.style.display = 'none';
-      this.ui.viewer.scene.renderError.addEventListener((scene, error) => {
-        this.handleRenderError(error);
-      });
-
-      this.state.cesiumInitialized = true;
-      console.log('✅ Cesium initialized');
-    } catch (error) {
-      console.error('❌ Cesium init failed:', error);
-      throw error;
-    }
-  }
-
-  checkWebGLSupport() {
-    try {
-      const canvas = document.createElement('canvas');
-      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-      return !!gl;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  handleRenderError(error) {
-    console.error('🔥 Render error:', error);
-    this.showNotification('Rendering error. Recovering...', 'error');
-    setTimeout(() => this.ui.viewer?.scene.requestRender(), 2000);
-  }
-
-  handleCriticalError(error) {
-    this.hideLoading();
-    const errorMessage = `Critical Error: ${error.message}`;
-    this.showNotification(errorMessage, 'error', 10000);
-
-    // Fallback UI
-    document.getElementById('app').innerHTML = `
-      <div style="display: flex; align-items: center; justify-content: center; height: 100vh; background: #1a1a2e; color: white; font-family: Arial;">
-        <div style="text-align: center; max-width: 800px; padding: 40px;">
-          <h1>🛰️ Starlink Tracker - Fallback Mode</h1>
-          <div style="background: #e74c3c; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <h2>Initialization Failed</h2>
-            <p>${errorMessage}</p>
-          </div>
-          <div style="background: #3498db; padding: 20px; border-radius: 8px; margin: 20px 0;">
-            <h3>Possible Solutions:</h3>
-            <ul style="text-align: left;">
-              <li>Enable WebGL and hardware acceleration</li>
-              <li>Update browser and graphics drivers</li>
-              <li>Use Chrome or Edge</li>
-              <li>Disable extensions</li>
-              <li>Check network</li>
-              <li>Set CESIUM_ION_TOKEN for better visuals</li>
-            </ul>
-          </div>
-          <button onclick="location.reload()" style="background: #4f86f7; color: white; border: none; padding: 15px 30px; border-radius: 5px; cursor: pointer; font-size: 16px;">
-            🔄 Retry
-          </button>
-        </div>
-      </div>
-    `;
-  }
-
-  // ===== DATA FETCHING =====
-  async fetchTLEData() {
-    try {
-      this.updateConnectionStatus('connecting');
-      console.log('📡 Fetching TLE from Celestrak...');
-
-      const response = await fetch(this.config.TLE_URL, {
-        method: 'GET',
-        headers: { 'Cache-Control': 'no-cache' },
-        signal: AbortSignal.timeout(30000),
-      });
-
-      if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
-
-      const tleText = await response.text();
-      console.log(`📊 Received ${tleText.length} bytes`);
-
-      await this.parseTLEData(tleText);
-
-      this.updateConnectionStatus('connected');
-      this.state.lastUpdate = new Date();
-      this.state.retryCount = 0;
-      this.updateUI();
-      this.showSatelliteList();
-    } catch (error) {
-      console.error('❌ TLE error:', error);
-      this.updateConnectionStatus('error');
-
-      if (this.state.retryCount < this.config.MAX_RETRY_ATTEMPTS) {
-        this.state.retryCount++;
-        this.showNotification(`Retry ${this.state.retryCount}/${this.config.MAX_RETRY_ATTEMPTS}...`, 'warning');
-        setTimeout(() => this.fetchTLEData(), this.config.RETRY_DELAY * this.state.retryCount);
-      } else {
-        this.showNotification('Failed to fetch data. Retry later.', 'error');
-      }
-    }
-  }
-
-  async parseTLEData(tleText) {
-    const lines = tleText.split(/\r?\n/).filter(line => line.trim());
-    this.state.satellites = [];
-    this.state.satByName = {};
-
-    let validCount = 0;
-    let errorCount = 0;
-
-    for (let i = 0; i < lines.length; i += 3) {
-      const name = lines[i]?.trim();
-      const line1 = lines[i + 1]?.trim();
-      const line2 = lines[i + 2]?.trim();
-
-      if (!name || !line1 || !line2) continue;
-
-      try {
-        const satrec = satellite.twoline2satrec(line1, line2);
-        if (satrec.error) throw new Error(`TLE error ${satrec.error}`);
-
-        const satData = {
-          name,
-          line1,
-          line2,
-          satrec,
-          lat: 0,
-          lon: 0,
-          alt: 0,
-          velocity: 0,
-          isVisible: false,
-          entity: null,
-          lastUpdate: Date.now(),
-        };
-
-        this.state.satellites.push(satData);
-        this.state.satByName[name] = satData;
-        validCount++;
-      } catch (err) {
-        errorCount++;
-        console.warn(`⚠️ Skip ${name}:`, err);
-      }
-    }
-
-    if (validCount === 0) throw new Error('No valid satellites');
-
-    console.log(`✅ Loaded ${validCount} sats (${errorCount} errors)`);
-
-    this.populateSearchDatalist();
-    this.createSatelliteEntities();
-  }
-
-  createSatelliteEntities() {
-    if (!this.ui.viewer) return;
-
-    console.log(`🛰️ Creating entities (limit ${this.config.MAX_SATELLITES_TO_RENDER})...`);
-
-    const satsToRender = this.state.satellites.slice(0, this.config.MAX_SATELLITES_TO_RENDER);
-
-    satsToRender.forEach((sat, index) => {
-      try {
-        const entity = this.ui.viewer.entities.add({
-          position: Cesium.Cartesian3.fromDegrees(0, 0, 400000),
-          point: {
-            pixelSize: 5,
-            color: this.ui.colors.default,
-            outlineColor: Cesium.Color.WHITE,
-            outlineWidth: 1,
-            heightReference: Cesium.HeightReference.NONE,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            scaleByDistance: new Cesium.NearFarScalar(1e6, 1.0, 1e7, 0.5),
-          },
-          billboard: {
-            image: this.createSatelliteIcon(),
-            width: 20,
-            height: 20,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            show: false, // Show on zoom or select
-          },
-          id: sat.name,
-          name: sat.name,
-          description: `Starlink: ${sat.name}`,
-        });
-
-        sat.entity = entity;
-
-        if (index % 1000 === 0) console.log(`📡 Created ${index}/${satsToRender.length}`);
-      } catch (error) {
-        console.error(`❌ Entity for ${sat.name}:`, error);
-      }
+      id: sat.name,
+      name: sat.name
     });
+    sat.entity = entity;
+  });
+}
 
-    console.log(`✅ Created ${satsToRender.length} entities`);
+// 4. Start the simulation loop to update positions in real-time
+function startSimulation() {
+  if (userLocation) {
+    updateVisibilityForAll();  // initial visibility classification
   }
-
-  createSatelliteIcon() {
-    const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-        <path d="M16 0 L20 12 H32 L22 20 L26 32 L16 26 L6 32 L10 20 L0 12 H12 L16 0 Z" fill="#FFD700" stroke="#FFF" stroke-width="1"/>
-      </svg>
-    `;
-    return 'data:image/svg+xml;base64,' + btoa(svg);
-  }
-
-  // ===== REAL-TIME UPDATES =====
-  startRealTimeUpdates() {
-    if (this.state.updateInterval) clearInterval(this.state.updateInterval);
-    if (this.state.tleRefreshInterval) clearInterval(this.state.tleRefreshInterval);
-
-    console.log('⏰ Starting updates...');
-    this.updateSatellitePositions();
-
-    this.state.updateInterval = setInterval(() => {
-      try {
-        this.updateSatellitePositions();
-        if (this.state.userLocation) {
-          this.updateVisibilityForAll();
-          this.predictNextPass();
-        }
-      } catch (error) {
-        console.error('❌ Update error:', error);
-      }
-    }, this.config.UPDATE_INTERVAL);
-
-    this.state.tleRefreshInterval = setInterval(() => {
-      console.log('🔄 Refresh TLE...');
-      this.fetchTLEData();
-    }, this.config.TLE_REFRESH_INTERVAL);
-  }
-
-  updateSatellitePositions() {
+  const updateIntervalMs = 1000;
+  let tickCount = 0;
+  setInterval(() => {
     const now = new Date();
     const gmst = satellite.gstime(now);
-    let updateCount = 0;
-    let errorCount = 0;
-
-    this.state.satellites.forEach(sat => {
-      try {
-        const prop = satellite.propagate(sat.satrec, now);
-        if (!prop.position) return;
-
-        const posEci = prop.position;
-        const velEci = prop.velocity || {x:0, y:0, z:0};
-
-        const gd = satellite.eciToGeodetic(posEci, gmst);
-        const lat = Cesium.Math.toDegrees(gd.latitude);
-        const lon = Cesium.Math.toDegrees(gd.longitude);
-        const alt = gd.height;
-
-        const vel = Math.sqrt(velEci.x**2 + velEci.y**2 + velEci.z**2);
-
-        sat.lat = lat;
-        sat.lon = lon;
-        sat.alt = alt;
-        sat.velocity = vel;
-        sat.lastUpdate = Date.now();
-
-        if (sat.entity) {
-          sat.entity.position = Cesium.Cartesian3.fromDegrees(lon, lat, alt * 1000);
+    satellites.forEach(sat => {
+      // Propagate satellite to current time
+      const { position: posEci } = satellite.propagate(sat.satrec, now);
+      if (!posEci) return;  // skip if propagation failed (sat may have decayed)
+      // ECI to geodetic coordinates
+      const positionGd = satellite.eciToGeodetic(posEci, gmst);
+      const lat = positionGd.latitude;
+      const lon = positionGd.longitude;
+      const altKm = positionGd.height;  // altitude in km
+      sat.lat = Cesium.Math.toDegrees(lat);
+      sat.lon = Cesium.Math.toDegrees(lon);
+      sat.alt = altKm;
+      // Update Cesium entity position (in ECEF Cartesian3)
+      const newPos = Cesium.Cartesian3.fromRadians(lon, lat, altKm * 1000);
+      sat.entity.position = newPos;
+      // If this satellite is selected, update its info and related visuals
+      if (sat === selectedSat) {
+        updateSelectedInfo();
+        if (coverageEntity) {
+          coverageEntity.position = Cesium.Cartesian3.fromDegrees(sat.lon, sat.lat, 0);
+          updateCoverageRadius(sat.alt);
         }
-
-        updateCount++;
-
-        if (sat === this.state.selectedSat) this.updateSelectedSatellite();
-      } catch (error) {
-        errorCount++;
-        if (errorCount < 10) console.warn(`⚠️ Update ${sat.name}:`, error);
+        if (selectedMarker) {
+          selectedMarker.position = Cesium.Cartesian3.fromDegrees(sat.lon, sat.lat, sat.alt * 1000);
+        }
       }
     });
-
-    this.updateLastUpdateTime();
-
-    if (Date.now() % 15000 < this.config.UPDATE_INTERVAL) {
-      console.log(`📊 Updated ${updateCount}/${this.state.satellites.length} (${errorCount} errors)`);
+    // Periodically update visibility statuses and overhead info
+    if (userLocation) {
+      tickCount++;
+      if (tickCount % 5 === 0) {
+        updateVisibilityForAll();
+      }
     }
-  }
+  }, updateIntervalMs);
+}
 
-  updateVisibilityForAll() {
-    if (!this.state.userLocation) return;
-
-    const R = 6371;
-    const userLatRad = Cesium.Math.toRadians(this.state.userLocation.lat);
-    const userLonRad = Cesium.Math.toRadians(this.state.userLocation.lon);
-
-    let visibleCount = 0;
-    let overheadSat = null;
-    let maxElevation = -90;
-
-    this.state.satellites.forEach(sat => {
-      const satLatRad = Cesium.Math.toRadians(sat.lat);
-      const satLonRad = Cesium.Math.toRadians(sat.lon);
-      const dLon = satLonRad - userLonRad;
-
-      const cosAngle = Math.sin(userLatRad) * Math.sin(satLatRad) + Math.cos(userLatRad) * Math.cos(satLatRad) * Math.cos(dLon);
-      const centralAngle = Math.acos(Math.min(Math.max(cosAngle, -1), 1));
-
-      const phi = Math.acos(R / (R + sat.alt));
-      const isVisible = centralAngle <= phi;
-
-      sat.isVisible = isVisible;
-
-      if (isVisible) {
-        visibleCount++;
-        const elevation = 90 - Cesium.Math.toDegrees(centralAngle);
-        if (elevation > maxElevation) {
-          maxElevation = elevation;
-          overheadSat = sat;
-        }
-      }
-
-      if (sat.entity && sat !== this.state.selectedSat) {
-        sat.entity.point.color = isVisible ? this.ui.colors.visible : this.ui.colors.default;
+// 5. Geolocation: get user location and add a marker
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(pos => {
+    userLocation = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+    console.log("User location:", userLocation);
+    // Mark user location on globe
+    userMarker = viewer.entities.add({
+      position: Cesium.Cartesian3.fromDegrees(userLocation.lon, userLocation.lat, 0),
+      point: {
+        pixelSize: 10,
+        color: Cesium.Color.CYAN,
+        outlineColor: Cesium.Color.BLACK,
+        outlineWidth: 2
+      },
+      label: {
+        text: "You",
+        showBackground: true,
+        backgroundColor: Cesium.Color.BLACK.withAlpha(0.5),
+        horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
+        pixelOffset: new Cesium.Cartesian2(8, -5)
       }
     });
+    // Show overhead info panel now that location is available
+    document.getElementById("overheadPanel").style.display = 'block';
+  }, error => {
+    console.warn("Geolocation permission denied or unavailable.");
+    const overheadPanel = document.getElementById("overheadPanel");
+    overheadPanel.style.display = 'block';
+    overheadPanel.textContent = "Location permission denied.";
+  });
+}
 
-    this.updateVisibleSatelliteCount(visibleCount);
-    this.updateOverheadInfo(overheadSat);
-  }
-
-  predictNextPass() {
-    if (!this.state.userLocation) return;
-
-    const now = Date.now();
-    const horizon = this.config.PASS_PREDICTION_HORIZON;
-    const step = 30; // seconds per step
-    let nextPass = null;
-    let minTime = Infinity;
-
-    this.state.satellites.forEach(sat => {
-      let startTime = null;
-      let endTime = null;
-
-      for (let t = 0; t < horizon; t += step) {
-        const time = new Date(now + t * 1000);
-        const prop = satellite.propagate(sat.satrec, time);
-        if (!prop.position) continue;
-
-        const gmst = satellite.gstime(time);
-        const gd = satellite.eciToGeodetic(prop.position, gmst);
-
-        const satLat = Cesium.Math.toDegrees(gd.latitude);
-        const satLon = Cesium.Math.toDegrees(gd.longitude);
-        const alt = gd.height;
-
-        const centralAngle = this.calculateCentralAngle(satLat, satLon);
-        const phi = Math.acos(6371 / (6371 + alt));
-        const isVisible = centralAngle <= phi;
-
-        if (isVisible && !startTime) startTime = time;
-        if (!isVisible && startTime) {
-          endTime = time;
-          break;
-        }
-      }
-
-      if (startTime && startTime.getTime() - now < minTime) {
-        minTime = startTime.getTime() - now;
-        nextPass = {
-          sat,
-          time: startTime,
-          duration: endTime ? (endTime - startTime) / 1000 : 0,
-        };
-      }
-    });
-
-    this.state.nextPass = nextPass;
-    this.updateNextPassInfo();
-  }
-
-  calculateCentralAngle(satLat, satLon) {
-    const userLatRad = Cesium.Math.toRadians(this.state.userLocation.lat);
-    const userLonRad = Cesium.Math.toRadians(this.state.userLocation.lon);
-    const satLatRad = Cesium.Math.toRadians(satLat);
-    const satLonRad = Cesium.Math.toRadians(satLon);
+// 6. Visibility computation: mark satellites as visible (above horizon) or not
+function updateVisibilityForAll() {
+  if (!userLocation) return;
+  const R = 6371.0;
+  const userLatRad = Cesium.Math.toRadians(userLocation.lat);
+  const userLonRad = Cesium.Math.toRadians(userLocation.lon);
+  satellites.forEach(sat => {
+    // Calculate angle between user and satellite (at Earth's center)
+    const satLatRad = Cesium.Math.toRadians(sat.lat);
+    const satLonRad = Cesium.Math.toRadians(sat.lon);
     const dLon = satLonRad - userLonRad;
+    const cosAngle = Math.sin(userLatRad) * Math.sin(satLatRad) +
+                     Math.cos(userLatRad) * Math.cos(satLatRad) * Math.cos(dLon);
+    const centralAngle = Math.acos(Math.min(Math.max(cosAngle, -1), 1));
+    // Horizon angle φ for satellite altitude
+    const phi = Math.acos(R / (R + sat.alt));
+    const isVisible = (centralAngle <= phi);
+    // Update color if not the selected one (selected stays red)
+    if (sat !== selectedSat) {
+      sat.entity.point.color = isVisible ? colorVisible : colorDefault;
+    }
+    sat.isVisible = isVisible;
+  });
+  // Update overhead satellite info panel
+  updateOverheadInfo();
+}
 
-    const cosAngle = Math.sin(userLatRad) * Math.sin(satLatRad) + Math.cos(userLatRad) * Math.cos(satLatRad) * Math.cos(dLon);
-    return Math.acos(Math.min(Math.max(cosAngle, -1), 1));
-  }
-
-  updateNextPassInfo() {
-    const panel = document.getElementById('nextPassPanel');
-    if (!panel) return;
-
-    panel.innerHTML = '';
-    panel.className = 'next-pass-panel visible';
-
-    if (this.state.nextPass) {
-      const { sat, time, duration } = this.state.nextPass;
-      const timeStr = time.toLocaleTimeString();
-      const durationMin = (duration / 60).toFixed(1);
-      panel.innerHTML = `
-        <p><strong>⏰ Next Overhead:</strong> ${sat.name}</p>
-        <p><strong>🕒 Time:</strong> ${timeStr}</p>
-        <p><strong>⏱️ Duration:</strong> ${durationMin} min</p>
-      `;
+// 6.5 Helper: Update overhead/next satellite info for user’s location
+function updateOverheadInfo() {
+  if (!userLocation) return;
+  const overheadPanel = document.getElementById("overheadPanel");
+  if (!overheadPanel) return;
+  // Determine which visible satellite is highest (closest to overhead) and which is next to rise
+  let bestSat = null, bestCos = -1;
+  let nextSat = null, minAngleDiff = Infinity;
+  const R = 6371.0;
+  const userLatRad = Cesium.Math.toRadians(userLocation.lat);
+  const userLonRad = Cesium.Math.toRadians(userLocation.lon);
+  const now = new Date();
+  satellites.forEach(sat => {
+    const satLatRad = Cesium.Math.toRadians(sat.lat);
+    const satLonRad = Cesium.Math.toRadians(sat.lon);
+    const dLon = satLonRad - userLonRad;
+    const cosAngle = Math.sin(userLatRad) * Math.sin(satLatRad) +
+                     Math.cos(userLatRad) * Math.cos(satLatRad) * Math.cos(dLon);
+    const centralAngle = Math.acos(Math.min(Math.max(cosAngle, -1), 1));
+    const phi = Math.acos(R / (R + sat.alt));
+    if (centralAngle <= phi) {
+      // Satellite is currently above horizon
+      if (cosAngle > bestCos) {
+        bestCos = cosAngle;
+        bestSat = sat;
+      }
     } else {
-      panel.innerHTML = '<p>🌌 No upcoming passes in next hour</p>';
+      // Satellite is below horizon
+      const diff = centralAngle - phi;
+      if (diff < minAngleDiff) {
+        minAngleDiff = diff;
+        nextSat = sat;
+      }
     }
-  }
-
-  // Add this to HTML: <div id="nextPassPanel" class="next-pass-panel"></div>
-
-  showSatelliteList() {
-    const listPanel = document.getElementById('satelliteListPanel');
-    if (!listPanel) return;
-
-    listPanel.innerHTML = '<h3>🛰️ All Starlink Satellites</h3><ul></ul>';
-    const ul = listPanel.querySelector('ul');
-
-    this.state.satellites.sort((a, b) => a.name.localeCompare(b.name)).forEach(sat => {
-      const li = document.createElement('li');
-      li.textContent = sat.name;
-      li.addEventListener('click', () => this.selectSatellite(sat));
-      ul.appendChild(li);
-    });
-  }
-
-  // Add to HTML: <div id="satelliteListPanel" class="satellite-list-panel"></div>
-
-  // ===== SELECTION AND UI (abbreviated, assume similar to previous) =====
-  selectSatellite(satData) {
-    // Similar to previous, with enhancements for icon show
-    if (satData.entity) {
-      satData.entity.billboard.show = true;
+  });
+  // Update the overheadPanel content
+  overheadPanel.innerHTML = "";
+  const currentP = document.createElement("p");
+  currentP.textContent = bestSat 
+    ? `Overhead now: ${bestSat.name}` 
+    : "No satellite overhead currently";
+  overheadPanel.appendChild(currentP);
+  if (nextSat) {
+    // Estimate time until next satellite rises above horizon
+    let etaStr = "";
+    try {
+      let visible = false;
+      let minutes;
+      for (minutes = 1; minutes <= 120; minutes++) {
+        const future = new Date(now.getTime() + minutes * 60000);
+        const gmst = satellite.gstime(future);
+        const prop = satellite.propagate(nextSat.satrec, future);
+        if (prop.position) {
+          const posEci = prop.position;
+          const gdPos = satellite.eciToGeodetic(posEci, gmst);
+          const lat = gdPos.latitude, lon = gdPos.longitude, alt = gdPos.height;
+          const satLatRad = lat, satLonRad = lon;
+          const dLon2 = satLonRad - userLonRad;
+          const cosAngle2 = Math.sin(userLatRad) * Math.sin(satLatRad) +
+                            Math.cos(userLatRad) * Math.cos(satLatRad) * Math.cos(dLon2);
+          const centralAngle2 = Math.acos(Math.min(Math.max(cosAngle2, -1), 1));
+          const phi2 = Math.acos(R / (R + alt));
+          if (centralAngle2 <= phi2) {
+            visible = true;
+            break;
+          }
+        }
+      }
+      if (visible) {
+        etaStr = `in ~${minutes} min`;
+      }
+    } catch (e) {
+      console.error("Next satellite ETA calculation error:", e);
     }
-    // ...
-  }
-
-  clearSelection() {
-    if (this.state.selectedSat?.entity) {
-      this.state.selectedSat.entity.billboard.show = false;
-    }
-    // ...
-  }
-
-  // Other methods like showCoverage, showOrbitalPath, event listeners, etc., remain similar with try-catch added where needed.
-
-  destroy() {
-    clearInterval(this.state.updateInterval);
-    clearInterval(this.state.tleRefreshInterval);
-    this.ui.viewer?.destroy();
-    console.log('🗑️ Cleaned up');
+    const nextP = document.createElement("p");
+    nextP.textContent = `Next satellite: ${nextSat.name}` + (etaStr ? ` ${etaStr}` : "");
+    overheadPanel.appendChild(nextP);
   }
 }
 
-// Initialization
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('🚀 Initializing...');
-  window.tracker = new StarlinkTracker();
+// 7. Selection handling: highlight satellite and show info
+function selectSatellite(satData) {
+  if (!satData || satData === selectedSat) return;
+  // Deselect previous selection
+  if (selectedSat) {
+    const prevSat = selectedSat;
+    // Restore its color based on visibility
+    prevSat.entity.point.color = (prevSat.isVisible && userLocation) ? colorVisible : colorDefault;
+    prevSat.entity.point.pixelSize = 3;
+    // Remove previously added marker (if any)
+    if (selectedMarker) {
+      viewer.entities.remove(selectedMarker);
+      selectedMarker = null;
+    }
+    // Remove previous path
+    if (selectedPath) {
+      viewer.entities.remove(selectedPath);
+      selectedPath = null;
+    }
+  }
+  // Select the new satellite
+  selectedSat = satData;
+  // Highlight it (red color and larger size)
+  selectedSat.entity.point.color = colorSelected;
+  selectedSat.entity.point.pixelSize = 6;
+  // Add a billboard crosshair icon at the satellite's position for easier tracking
+  selectedMarker = viewer.entities.add({
+    position: Cesium.Cartesian3.fromDegrees(selectedSat.lon, selectedSat.lat, selectedSat.alt * 1000),
+    billboard: {
+      image: crosshairIcon,
+      width: 32,
+      height: 32,
+      verticalOrigin: Cesium.VerticalOrigin.CENTER,
+      horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+      scale: 1.5  // Increased scale for better visibility
+    }
+  });
+  // Fly camera to the selected satellite with adjusted offset for better view
+  viewer.flyTo(selectedSat.entity, {
+    duration: 1.5,
+    offset: new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-45), (selectedSat.alt * 1000 * 2) + 500000)
+  });
+  // Populate the info panel with this satellite's details
+  showSatelliteInfo(selectedSat);
+  // Show coverage footprint on Earth (blue circle) for this satellite
+  showCoverage(selectedSat);
+  // Show orbital path
+  showOrbitalPath(selectedSat);
+  // On mobile, auto-show the sidebar to display info
+  const sidebar = document.getElementById("sidebar");
+  if (window.innerWidth <= 600) {
+    sidebar.classList.add("show");
+  }
+}
+
+// Display satellite info in the sidebar info panel, including advanced engineering details
+function showSatelliteInfo(sat) {
+  const infoPanel = document.getElementById("infoPanel");
+  infoPanel.innerHTML = "";
+  const title = document.createElement("h3");
+  title.textContent = sat.name;
+  infoPanel.appendChild(title);
+  const posPara = document.createElement("p");
+  posPara.innerHTML =
+    `Latitude: <span id="infoLat"></span>°<br/>
+     Longitude: <span id="infoLon"></span>°<br/>
+     Altitude: <span id="infoAlt"></span> km<br/>
+     Velocity: <span id="infoVel"></span> km/s`;
+  infoPanel.appendChild(posPara);
+  // Add orbital parameters (publicly derived from TLE)
+  const orbitalPara = document.createElement("p");
+  const incl = Cesium.Math.toDegrees(sat.satrec.inclo);
+  const periodMin = 86400 / sat.satrec.no / 60;
+  const ecc = sat.satrec.ecco;
+  const raan = Cesium.Math.toDegrees(sat.satrec.nodeo);
+  const argPerigee = Cesium.Math.toDegrees(sat.satrec.argpo);
+  orbitalPara.innerHTML =
+    `Inclination: ${incl.toFixed(2)}°<br/>
+     Eccentricity: ${ecc.toFixed(6)}<br/>
+     Orbital Period: ${periodMin.toFixed(2)} min<br/>
+     RAAN: ${raan.toFixed(2)}°<br/>
+     Argument of Perigee: ${argPerigee.toFixed(2)}°`;
+  infoPanel.appendChild(orbitalPara);
+  const tlePara = document.createElement("p");
+  tlePara.textContent = "TLE:";
+  infoPanel.appendChild(tlePara);
+  const tlePre = document.createElement("pre");
+  tlePre.textContent = sat.line1 + "\n" + sat.line2;
+  infoPanel.appendChild(tlePre);
+  // Fill in the initial values
+  updateSelectedInfo();
+}
+
+// Update the info panel fields for the selected satellite on each tick
+function updateSelectedInfo() {
+  if (!selectedSat) return;
+  const latSpan = document.getElementById("infoLat");
+  const lonSpan = document.getElementById("infoLon");
+  const altSpan = document.getElementById("infoAlt");
+  const velSpan = document.getElementById("infoVel");
+  if (latSpan) {
+    latSpan.textContent = selectedSat.lat.toFixed(2);
+    lonSpan.textContent = selectedSat.lon.toFixed(2);
+    altSpan.textContent = selectedSat.alt.toFixed(1);
+    const vel = getCurrentVelocity(selectedSat);
+    velSpan.textContent = vel ? vel.toFixed(2) : "?";
+  }
+}
+
+// Compute current velocity magnitude (km/s) of a satellite from its satrec
+function getCurrentVelocity(sat) {
+  try {
+    const pv = satellite.propagate(sat.satrec, new Date());
+    if (pv.velocity) {
+      const { x: vx, y: vy, z: vz } = pv.velocity;
+      return Math.sqrt(vx*vx + vy*vy + vz*vz);
+    }
+  } catch (e) {}
+  return null;
+}
+
+// Show or update coverage footprint (ground coverage circle) for a satellite
+function showCoverage(sat) {
+  const lat = sat.lat;
+  const lon = sat.lon;
+  const altKm = sat.alt;
+  const R = 6371.0;
+  // Radius of coverage (distance to horizon)
+  const phi = Math.acos(R / (R + altKm));
+  const radiusMeters = R * 1000 * phi;
+  if (!coverageEntity) {
+    coverageEntity = viewer.entities.add({
+      position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+      ellipse: {
+        semiMajorAxis: radiusMeters,
+        semiMinorAxis: radiusMeters,
+        material: Cesium.Color.BLUE.withAlpha(0.2),
+        height: 0
+      }
+    });
+  } else {
+    coverageEntity.position = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
+    coverageEntity.ellipse.semiMajorAxis = radiusMeters;
+    coverageEntity.ellipse.semiMinorAxis = radiusMeters;
+  }
+}
+
+// Update coverage radius if altitude changes (called during propagation updates)
+function updateCoverageRadius(altKm) {
+  if (!coverageEntity) return;
+  const R = 6371.0;
+  const phi = Math.acos(R / (R + altKm));
+  const radiusMeters = R * 1000 * phi;
+  coverageEntity.ellipse.semiMajorAxis = radiusMeters;
+  coverageEntity.ellipse.semiMinorAxis = radiusMeters;
+}
+
+// Show approximate orbital path as a polyline for the selected satellite
+function showOrbitalPath(sat) {
+  const positions = [];
+  const periodMin = 86400 / sat.satrec.no / 60;
+  const steps = 100;
+  const stepMs = (periodMin * 60000) / steps;
+  const now = new Date().getTime();
+  for (let i = 0; i <= steps; i++) {
+    const time = new Date(now + i * stepMs);
+    const gmst = satellite.gstime(time);
+    const prop = satellite.propagate(sat.satrec, time);
+    if (prop.position) {
+      const gd = satellite.eciToGeodetic(prop.position, gmst);
+      const lon = Cesium.Math.toDegrees(gd.longitude);
+      const lat = Cesium.Math.toDegrees(gd.latitude);
+      const alt = gd.height * 1000;
+      positions.push(Cesium.Cartesian3.fromDegrees(lon, lat, alt));
+    }
+  }
+  if (positions.length > 1) {
+    selectedPath = viewer.entities.add({
+      polyline: {
+        positions: positions,
+        width: 2,
+        material: Cesium.Color.ORANGE
+      }
+    });
+  }
+}
+
+// 8. UI Event Listeners
+
+// Search box selection (enhanced for robustness, with debounce for exact match)
+const searchInput = document.getElementById("searchBox");
+let searchTimer;
+searchInput.addEventListener("input", () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    const query = searchInput.value.trim();
+    if (query && satByName[query]) {
+      selectSatellite(satByName[query]);
+      searchInput.blur();  // Hide keyboard on mobile after selection
+    }
+  }, 300);
+});
+searchInput.addEventListener("change", () => {
+  const query = searchInput.value.trim();
+  if (query && satByName[query]) {
+    selectSatellite(satByName[query]);
+  }
+});
+searchInput.addEventListener("keyup", e => {
+  if (e.key === "Enter") {
+    const query = searchInput.value.trim();
+    if (query && satByName[query]) {
+      selectSatellite(satByName[query]);
+    }
+  }
 });
 
-// Note: Add to HTML structure panels for nextPassPanel and satelliteListPanel with appropriate CSS for stunning UI.
+// Click on globe to select a satellite
+viewer.screenSpaceEventHandler.setInputAction((movement) => {
+  const picked = viewer.scene.pick(movement.position);
+  if (Cesium.defined(picked) && Cesium.defined(picked.id) && picked.id instanceof Cesium.Entity) {
+    const entity = picked.id;
+    const pickedName = entity.id;
+    if (pickedName && satByName[pickedName]) {
+      selectSatellite(satByName[pickedName]);
+    }
+  }
+}, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+// Theme toggle button
+document.getElementById("toggleThemeBtn").addEventListener("click", () => {
+  const body = document.body;
+  if (body.classList.contains("dark")) {
+    body.classList.remove("dark");
+    body.classList.add("light");
+  } else if (body.classList.contains("light")) {
+    body.classList.remove("light");
+    body.classList.add("dark");
+  }
+});
+
+// Sidebar toggle (for mobile)
+const sidebar = document.getElementById("sidebar");
+const panelToggleBtn = document.getElementById("togglePanelBtn");
+panelToggleBtn.addEventListener("click", () => {
+  if (sidebar.classList.contains("show")) {
+    sidebar.classList.remove("show");
+  } else {
+    sidebar.classList.add("show");
+  }
+});
+
+// Export visible satellites to CSV
+document.getElementById("exportBtn").addEventListener("click", () => {
+  if (!userLocation) {
+    alert("Enable location to determine visible satellites.");
+    return;
+  }
+  let csvContent = "Satellite Name,Latitude (deg),Longitude (deg),Altitude (km)\n";
+  satellites.forEach(sat => {
+    if (sat.isVisible) {
+      csvContent += `${sat.name},${sat.lat.toFixed(2)},${sat.lon.toFixed(2)},${sat.alt.toFixed(1)}\n`;
+    }
+  });
+  const blob = new Blob([csvContent], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `visible_starlinks_${userLocation.lat.toFixed(2)}_${userLocation.lon.toFixed(2)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+// Reset View button: zoom out to full Earth view and clear selection
+document.getElementById("resetViewBtn").addEventListener("click", () => {
+  // Deselect any selected satellite
+  if (selectedSat) {
+    // restore its color and size
+    selectedSat.entity.point.color = (selectedSat.isVisible && userLocation) ? colorVisible : colorDefault;
+    selectedSat.entity.point.pixelSize = 3;
+    selectedSat = null;
+  }
+  // Remove coverage, marker, and path if they exist
+  if (coverageEntity) {
+    viewer.entities.remove(coverageEntity);
+    coverageEntity = null;
+  }
+  if (selectedMarker) {
+    viewer.entities.remove(selectedMarker);
+    selectedMarker = null;
+  }
+  if (selectedPath) {
+    viewer.entities.remove(selectedPath);
+    selectedPath = null;
+  }
+  // Zoom out to show all entities (entire constellation and Earth)
+  viewer.zoomTo(viewer.entities);
+  // On mobile, hide sidebar for a full view
+  if (sidebar.classList.contains("show")) {
+    sidebar.classList.remove("show");
+  }
+});
+

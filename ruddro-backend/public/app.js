@@ -88,25 +88,26 @@ async function initializeProfessionalCesium() {
         viewer = new Cesium.Viewer("cesiumContainer", {
             // HIGH-RESOLUTION SATELLITE IMAGERY
             imageryProvider: new Cesium.IonImageryProvider({ 
-                assetId: 3954, // Sentinel-2 imagery
+                assetId: 2, // Cesium World Imagery
                 accessToken: appConfig.cesiumToken
             }),
             
             // PROFESSIONAL TERRAIN
-            terrainProvider: await Cesium.createWorldTerrainAsync({
-                requestWaterMask: true,
-                requestVertexNormals: true
+            terrainProvider: new Cesium.CesiumTerrainProvider({
+                url: Cesium.IonResource.fromAssetId(1, {
+                    accessToken: appConfig.cesiumToken
+                })
             }),
             
             // REALISTIC SPACE ENVIRONMENT
             skyBox: new Cesium.SkyBox({
                 sources: {
-                    positiveX: 'https://cesium.com/public/assets/images/stars/TychoSkymapII.t3_08192x04096_80_px.jpg',
-                    negativeX: 'https://cesium.com/public/assets/images/stars/TychoSkymapII.t3_08192x04096_80_mx.jpg',
-                    positiveY: 'https://cesium.com/public/assets/images/stars/TychoSkymapII.t3_08192x04096_80_py.jpg',
-                    negativeY: 'https://cesium.com/public/assets/images/stars/TychoSkymapII.t3_08192x04096_80_my.jpg',
-                    positiveZ: 'https://cesium.com/public/assets/images/stars/TychoSkymapII.t3_08192x04096_80_pz.jpg',
-                    negativeZ: 'https://cesium.com/public/assets/images/stars/TychoSkymapII.t3_08192x04096_80_mz.jpg'
+                    positiveX: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI/hS6HQQAAAABJRU5ErkJggg==',
+                    negativeX: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI/hS6HQQAAAABJRU5ErkJggg==',
+                    positiveY: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI/hS6HQQAAAABJRU5ErkJggg==',
+                    negativeY: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI/hS6HQQAAAABJRU5ErkJggg==',
+                    positiveZ: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI/hS6HQQAAAABJRU5ErkJggg==',
+                    negativeZ: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI/hS6HQQAAAABJRU5ErkJggg=='
                 }
             }),
             
@@ -136,8 +137,23 @@ async function initializeProfessionalCesium() {
         viewer.scene.globe.atmosphereMieCoefficient = new Cesium.Cartesian3(21e-6, 21e-6, 21e-6);
         
         // PROFESSIONAL SUN AND LIGHTING
-        viewer.scene.sun = new Cesium.Sun();
-        viewer.scene.moon = new Cesium.Moon();
+        viewer.scene.skyAtmosphere.show = true;
+        viewer.scene.sun.show = true;
+        viewer.scene.moon.show = true;
+        viewer.scene.sun.textureUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==';
+        
+        // Add professional sun representation
+        sun = viewer.entities.add({
+            name: 'Sun',
+            position: new Cesium.CallbackProperty(function(time, result) {
+                return Cesium.Simon1994PlanetaryPositions.computeSunPositionInEarthInertialFrame(time, result);
+            }, false),
+            billboard: {
+                image: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iMTYiIGZpbGw9IiNGRkQ3MDAiLz4KPGNpcmNsZSBjeD0iMzIiIGN5PSIzMiIgcj0iMTIiIGZpbGw9IiNGRkY1MDAiLz4KPC9zdmc+',
+                scale: 1.5,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY
+            }
+        });
         
         // PROFESSIONAL CAMERA CONTROLS
         viewer.scene.screenSpaceCameraController.enableRotate = true;
@@ -620,7 +636,10 @@ async function selectProfessionalSatellite(satData) {
             duration: 3.0,
             offset: new Cesium.HeadingPitchRange(0, -Cesium.Math.toRadians(25), 5000000)
         });
-.sunt aut facere repellat provident occaecati excepturi optio reprehenderit
+    } catch (flyError) {
+        console.warn('Professional camera tracking failed:', flyError.message);
+    }
+
     // Update selected satellite globally
     selectedSatellites.clear();
     selectedSatellites.set(satData.name, satData);
@@ -1063,3 +1082,4 @@ function resetProfessionalView() {
     
     console.log('✅ Professional view reset to optimal orbital perspective');
 }
+

@@ -1,131 +1,49 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Starlink Tracker</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Cesium.js"></script>
-    <script src="https://unpkg.com/satellite.js@4.2.1/dist/satellite.min.js"></script>
-    <style>
-        #cesiumContainer { height: 100vh; width: 100vw; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Starlink Satellite Tracker</title>
+  <!-- CesiumJS default CSS -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.132.0/Widgets/widgets.css" rel="stylesheet" />
+  <!-- Custom app styles -->
+  <link href="style.css" rel="stylesheet" />
 </head>
-<body>
-    <div id="loadingScreen">
-        <div class="loader">
-            <p>Loading Starlink Constellation...</p>
-            <div class="satellite-orbit">
-                <div class="satellite"></div>
-            </div>
-            <div class="progress-bar">
-                <div class="progress-fill"></div>
-            </div>
-        </div>
+<body class="dark">
+  <!-- Sidebar panel for controls and info -->
+  <div id="sidebar">
+    <h1>Starlink Tracker</h1>
+    <!-- Search input with datalist for suggestions -->
+    <input id="searchBox" type="search" list="satList" placeholder="Search satellite..." />
+    <datalist id="satList"></datalist>
+
+    <!-- Info panel showing details of selected satellite -->
+    <div id="infoPanel">
+      <p>Select a satellite to see details.</p>
     </div>
 
-    <div id="app">
-        <div id="cesiumContainer"></div>
-        <aside id="sidebar">
-            <header class="sidebar-header">
-                <h1>🛰️ Starlink Tracker</h1>
-                <div class="connection-status">
-                    <div class="status-indicator"></div>
-                    Connecting...
-                </div>
-            </header>
+    <!-- Overhead satellite info panel (shown if location is enabled) -->
+    <div id="overheadPanel"></div>
 
-            <section class="search-section">
-                <input type="text" id="searchBox" list="satList" placeholder="Search satellite...">
-                <datalist id="satList"></datalist>
-                <button id="randomBtn" class="btn-primary">🎲 Random Satellite</button>
-            </section>
-
-            <section class="stats-panel">
-                <div class="stat-item">
-                    <span class="stat-label">Total Satellites:</span>
-                    <span class="stat-value" id="totalSats">Loading...</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Visible Now:</span>
-                    <span class="stat-value" id="visibleSats">-</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Last Update:</span>
-                    <span class="stat-value" id="lastUpdate">Never</span>
-                </div>
-            </section>
-
-            <section class="info-panel" id="infoPanel">
-                <h3>Satellite Information</h3>
-                <button class="btn-clear">✕</button>
-                Click on a satellite or search to see details
-            </section>
-
-            <footer class="sidebar-footer">
-                Data: CelesTrak | Last TLE Update: <span id="tleUpdate">Loading...</span>
-            </footer>
-        </aside>
-
-        <button class="panel-toggle">
-            <div class="hamburger"></div>
-        </button>
-
-        <div class="controls-grid">
-            <button id="toggleThemeBtn" class="btn-primary">🌓 Theme</button>
-            <button id="exportBtn" class="btn-primary">📊 Export CSV</button>
-            <button id="resetViewBtn" class="btn-primary">🌍 Reset View</button>
-            <button id="fullscreenBtn" class="btn-primary">⛶ Fullscreen</button>
-            <button id="settingsBtn" class="btn-primary">⚙️ Settings</button>
-            <button id="aboutBtn" class="btn-primary">ℹ️ About</button>
-        </div>
-
-        <div class="notifications-container"></div>
+    <!-- Buttons for extra controls -->
+    <div id="controls">
+      <button id="toggleThemeBtn">Toggle Dark/Light</button>
+      <button id="exportBtn">Export Visible CSV</button>
+      <button id="resetViewBtn">Reset View</button>  <!-- New reset view button -->
     </div>
+  </div>
 
-    <!-- Settings Modal -->
-    <div id="settingsModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Settings</h2>
-                <button class="modal-close">✕</button>
-            </div>
-            <div class="modal-body">
-                <label>Update Interval (seconds):</label>
-                <input type="range" id="updateInterval" min="10" max="300" value="30">
-                <span id="intervalValue">30s</span>
+  <!-- Globe container for Cesium -->
+  <div id="cesiumContainer"></div>
 
-                <label><input type="checkbox" id="showPaths" checked> Show orbital paths</label>
-                <label><input type="checkbox" id="showCoverage" checked> Show coverage areas</label>
-                <label><input type="checkbox" id="enableSounds"> Enable notification sounds</label>
-            </div>
-        </div>
-    </div>
+  <!-- Panel toggle button (visible on mobile to show/hide sidebar) -->
+  <button id="togglePanelBtn">☰</button>
 
-    <!-- About Modal -->
-    <div id="aboutModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>About Starlink Tracker</h2>
-                <button class="modal-close">✕</button>
-            </div>
-            <div class="modal-body">
-                Real-time Starlink satellite tracking application built with CesiumJS and modern web technologies.
-                Features:
-                - 🌍 Real-time satellite positions
-                - 🛰️ Interactive 3D globe visualization
-                - 📡 Visibility calculations from your location
-                - 🎯 Satellite search and selection
-                - 📊 Orbital parameters and TLE data
-                - 📱 Responsive design for all devices
-
-                Data Sources: Satellite data provided by CelesTrak
-
-                Version: 2.0.0 - Industry Edition
-            </div>
-        </div>
-    </div>
-
-    <script src="app.js"></script>
+  <!-- CesiumJS library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cesium/1.132.0/Cesium.js"></script>
+  <!-- Satellite.js library for SGP4 calculations -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/satellite.js/4.0.0/satellite.min.js"></script>
+  <!-- Application script -->
+  <script src="app.js"></script>
 </body>
 </html>

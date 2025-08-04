@@ -1,0 +1,249 @@
+services:
+  # Gateway Service (Main Backend)
+  - type: web
+    name: satellite-tracking-gateway
+    runtime: node
+    plan: standard
+    region: oregon
+    buildCommand: cd backend && npm ci && npm run build
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: MONGODB_URI
+        fromDatabase:
+          name: satellite-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: satellite-cache
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CESIUM_ION_TOKEN
+        sync: false
+      - key: AUTO_TOKEN_ROTATION
+        value: true
+      - key: SELF_HEALING_ENABLED
+        value: true
+      - key: THREAT_ANALYSIS_ENABLED
+        value: true
+      - key: ORBIT_SERVICE_URL
+        fromService:
+          type: web
+          name: satellite-orbit-service
+          property: url
+    healthCheckPath: /api/health
+    domains:
+      - satellite-tracking.onrender.com
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=31536000; includeSubDomains
+    buildFilter:
+      paths:
+        - backend/**
+      ignoredPaths:
+        - README.md
+        - docs/**
+
+  # Orbit Microservice (Python)
+  - type: web
+    name: satellite-orbit-service
+    runtime: python
+    plan: standard plus
+    region: oregon
+    buildCommand: cd orbit-service && pip install -r requirements.txt
+    startCommand: cd orbit-service && gunicorn --bind 0.0.0.0:$PORT --workers 4 --worker-class gevent --timeout 120 app:app
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: satellite-cache
+          property: connectionString
+      - key: CELESTRAK_API_BASE
+        value: https://celestrak.org
+      - key: AUTO_TOKEN_ROTATION
+        value: true
+      - key: THREAT_ANALYSIS_ENABLED
+        value: true
+      - key: MAX_SATELLITES_RENDER
+        value: 20000
+    healthCheckPath: /health
+    buildFilter:
+      paths:
+        - orbit-service/**
+      ignoredPaths:
+        - README.md
+        - tests/**
+
+  # Frontend (React)
+  - type: static_site
+    name: satellite-tracking-frontend
+    buildCommand: cd frontend && npm ci && npm run build
+    publishPath: frontend/build
+    pullRequestPreviewsEnabled: false
+    domains:
+      - app.satellite-tracking.com
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Content-Security-Policy
+        value: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cesium.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cesium.com; img-src 'self' data: https: blob:; connect-src 'self' https://api.cesium.com https://assets.ion.cesium.com wss: ws:; worker-src 'self' blob:; font-src 'self' https:;
+    routes:
+      - type: redirect
+        source: /*
+        destination: /index.html
+    buildFilter:
+      paths:
+        - frontend/**
+      ignoredPaths:
+        - README.md
+        - tests/**
+
+  # Static Portfolio Site
+  - type: static_site
+    name: ruddro-portfolio
+    buildCommand: cd static-site && echo "No build required"
+    publishPath: static-site
+    pullRequestPreviewsEnabled: false
+    domains:
+      - portfolio.ruddro.com
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=31536000
+    routes:
+      - type: redirect
+        source: /*
+        destination: /index.html
+    buildFilter:
+      paths:
+        - static-site/**
+
+# Databases and Infrastructure
+databases:
+  - name: satellite-db
+    databaseName: satellite_tracker
+    user: satellite_user
+    plan: standard
+    region: oregon
+
+  - name: satellite-cache
+    type: redis
+    name: satellite-cache
+    plan: standard
+    region: oregon
+    maxmemoryPolicy: allkeys-lru
+
+# Background Workers
+workers:
+  - type: worker
+    name: satellite-data-processor
+    runtime: python
+    plan: standard
+    region: oregon
+    buildCommand: cd orbit-service && pip install -r requirements.txt
+    startCommand: cd orbit-service && python worker.py
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: satellite-cache
+          property: connectionString
+      - key: CELESTRAK_API_BASE
+        value: https://celestrak.org
+      - key: WORKER_TYPE
+        value: data_processor
+    buildFilter:
+      paths:
+        - orbit-service/**
+
+  - type: worker
+    name: threat-analyzer
+    runtime: python
+    plan: standard
+    region: oregon
+    buildCommand: cd orbit-service && pip install -r requirements.txt
+    startCommand: cd orbit-service && python threat_worker.py
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: satellite-cache
+          property: connectionString
+      - key: WORKER_TYPE
+        value: threat_analyzer
+      - key: THREAT_ANALYSIS_ENABLED
+        value: true
+    buildFilter:
+      paths:
+        - orbit-service/**
+
+# Cron Jobs
+cronjobs:
+  - type: cronjob
+    name: satellite-data-sync
+    runtime: python
+    schedule: "*/15 * * * *"  # Every 15 minutes
+    buildCommand: cd orbit-service && pip install -r requirements.txt
+    startCommand: cd orbit-service && python sync_satellites.py
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: satellite-cache
+          property: connectionString
+      - key: CELESTRAK_API_BASE
+        value: https://celestrak.org
+    buildFilter:
+      paths:
+        - orbit-service/**
+
+  - type: cronjob
+    name: threat-assessment-batch
+    runtime: python
+    schedule: "0 */6 * * *"  # Every 6 hours
+    buildCommand: cd orbit-service && pip install -r requirements.txt
+    startCommand: cd orbit-service && python batch_threat_analysis.py
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: satellite-cache
+          property: connectionString
+      - key: THREAT_ANALYSIS_ENABLED
+        value: true
+    buildFilter:
+      paths:
+        - orbit-service/**

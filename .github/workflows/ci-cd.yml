@@ -1,0 +1,318 @@
+name: Satellite Tracking Platform CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY: ghcr.io
+  NAMESPACE: ruddro-roy
+
+jobs:
+  # Test Jobs
+  test-backend:
+    name: Test Backend Services
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: backend/package-lock.json
+
+    - name: Install backend dependencies
+      working-directory: backend
+      run: npm ci
+
+    - name: Type check backend
+      working-directory: backend
+      run: npm run type-check
+
+    - name: Lint backend
+      working-directory: backend
+      run: npm run lint
+
+    - name: Test backend
+      working-directory: backend
+      run: npm test
+      env:
+        NODE_ENV: test
+
+  test-orbit-service:
+    name: Test Orbit Service
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+        cache-dependency-path: orbit-service/requirements.txt
+
+    - name: Install orbit service dependencies
+      working-directory: orbit-service
+      run: |
+        pip install -r requirements.txt
+        pip install pytest pytest-cov flake8 mypy
+
+    - name: Lint orbit service
+      working-directory: orbit-service
+      run: |
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: Type check orbit service
+      working-directory: orbit-service
+      run: mypy . --ignore-missing-imports
+
+    - name: Test orbit service
+      working-directory: orbit-service
+      run: pytest --cov=. --cov-report=xml
+
+  test-frontend:
+    name: Test Frontend
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install frontend dependencies
+      working-directory: frontend
+      run: npm ci
+
+    - name: Type check frontend
+      working-directory: frontend
+      run: npm run type-check
+
+    - name: Lint frontend
+      working-directory: frontend
+      run: npm run lint
+
+    - name: Test frontend
+      working-directory: frontend
+      run: npm test -- --coverage --watchAll=false
+
+    - name: Build frontend
+      working-directory: frontend
+      run: npm run build
+
+  # Security Scanning
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-orbit-service, test-frontend]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  # Build and Push Images
+  build-images:
+    name: Build and Push Images
+    runs-on: ubuntu-latest
+    needs: [test-backend, test-orbit-service, test-frontend, security-scan]
+    if: github.ref == 'refs/heads/main'
+    
+    strategy:
+      matrix:
+        service: [backend, orbit-service, frontend, static-site]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Login to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/satellite-${{ matrix.service }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./${{ matrix.service }}
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  # Deploy to Staging
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build-images
+    if: github.ref == 'refs/heads/main'
+    environment: staging
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+
+    - name: Update kubeconfig
+      run: aws eks update-kubeconfig --name satellite-tracking-staging
+
+    - name: Deploy to staging
+      run: |
+        kubectl apply -f k8s/namespace.yaml
+        kubectl apply -f k8s/staging/
+        kubectl set image deployment/gateway gateway=${{ env.REGISTRY }}/${{ env.NAMESPACE }}/satellite-backend:latest -n satellite-staging
+        kubectl set image deployment/orbit-service orbit-service=${{ env.REGISTRY }}/${{ env.NAMESPACE }}/satellite-orbit-service:latest -n satellite-staging
+        kubectl set image deployment/frontend frontend=${{ env.REGISTRY }}/${{ env.NAMESPACE }}/satellite-frontend:latest -n satellite-staging
+        kubectl set image deployment/static-site static-site=${{ env.REGISTRY }}/${{ env.NAMESPACE }}/satellite-static-site:latest -n satellite-staging
+
+    - name: Wait for deployment
+      run: |
+        kubectl rollout status deployment/gateway -n satellite-staging --timeout=300s
+        kubectl rollout status deployment/orbit-service -n satellite-staging --timeout=300s
+        kubectl rollout status deployment/frontend -n satellite-staging --timeout=300s
+        kubectl rollout status deployment/static-site -n satellite-staging --timeout=300s
+
+    - name: Run health checks
+      run: |
+        kubectl wait --for=condition=ready pod -l app=gateway -n satellite-staging --timeout=300s
+        kubectl wait --for=condition=ready pod -l app=orbit-service -n satellite-staging --timeout=300s
+
+  # Deploy to Production
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+
+    - name: Configure Render deployment
+      run: |
+        curl -X POST \
+          -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+          -H "Content-Type: application/json" \
+          -d '{"clearCache": false}' \
+          "https://api.render.com/v1/services/${{ secrets.RENDER_SERVICE_ID }}/deploys"
+
+    - name: Verify production deployment
+      run: |
+        sleep 60
+        curl -f https://satellite-tracking.onrender.com/api/health || exit 1
+
+  # Performance Testing
+  performance-test:
+    name: Performance Testing
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run load tests
+      run: |
+        docker run --rm -v $(pwd)/tests/load:/tests \
+          grafana/k6 run /tests/satellite-tracking-load-test.js \
+          --env STAGING_URL=https://staging.satellite-tracking.com
+
+  # Cleanup
+  cleanup:
+    name: Cleanup
+    runs-on: ubuntu-latest
+    needs: [deploy-production, performance-test]
+    if: always()
+    
+    steps:
+    - name: Clean up Docker images
+      run: |
+        docker system prune -af
+        docker volume prune -f
+
+  # Notification
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: always()
+    
+    steps:
+    - name: Notify on success
+      if: success()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: success
+        fields: repo,message,commit,author,action,eventName,ref,workflow
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+    - name: Notify on failure
+      if: failure()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: failure
+        fields: repo,message,commit,author,action,eventName,ref,workflow
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

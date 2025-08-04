@@ -1,7 +1,7 @@
 /*
  * Mission Control Backend - Enterprise Grade
  * Secure proxy implementation for Cesium Ion and real-time satellite data
- * Enhanced with advanced security, performance optimizations, and scalability notes.
+ * Enhanced with advanced security, performance optimizations, and scalability
  */
 
 require('dotenv').config();
@@ -12,6 +12,8 @@ const satellite = require('satellite.js');
 const cors = require('cors');
 const path = require('path');
 const crypto = require('crypto');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -19,294 +21,478 @@ const port = process.env.PORT || 3000;
 // CRITICAL: Validate environment
 if (!process.env.CESIUM_ION_TOKEN) {
     console.error('FATAL: CESIUM_ION_TOKEN not configured');
+    console.error('Please set CESIUM_ION_TOKEN in your environment variables');
     process.exit(1);
 }
 
 // Security middleware
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://cesium.com", "https://cdn.jsdelivr.net"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://cesium.com"],
+            imgSrc: ["'self'", "data:", "https:", "blob:"],
+            connectSrc: ["'self'", "https://api.cesium.com", "https://assets.ion.cesium.com", "https://celestrak.org"],
+            workerSrc: ["'self'", "blob:"],
+            fontSrc: ["'self'", "https:"],
+        },
+    },
+}));
+
 app.use(cors({
     origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : true,
     credentials: true
 }));
-app.use(express.json());
 
-// Rate limiting for API endpoints (enhanced with sliding window in production)
-const rateLimitMap = new Map();
-const rateLimit = (req, res, next) => {
-    const ip = req.ip;
-    const now = Date.now();
-    const limit = 100; // requests per minute
-    
-    if (!rateLimitMap.has(ip)) {
-        rateLimitMap.set(ip, { count: 1, resetTime: now + 60000 });
-        return next();
-    }
-    
-    const record = rateLimitMap.get(ip);
-    if (now > record.resetTime) {
-        record.count = 1;
-        record.resetTime = now + 60000;
-        return next();
-    }
-    
-    if (record.count >= limit) {
-        return res.status(429).json({ error: 'Rate limit exceeded' });
-    }
-    
-    record.count++;
-    next();
-};
+app.use(express.json({ limit: '10mb' }));
+
+// Enhanced rate limiting
+const createRateLimit = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 1000, // limit each IP to 1000 requests per windowMs
+    message: 'Too many requests from this IP, please try again later.',
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+const apiRateLimit = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 100, // limit each IP to 100 API requests per minute
+    message: 'Too many API requests, please try again later.',
+});
+
+app.use(createRateLimit);
 
 // Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Generate session token for Cesium proxy (enhanced security: bind to IP)
-app.get('/api/session', rateLimit, (req, res) => {
-    const sessionId = crypto.randomBytes(32).toString('hex');
-    const expires = Date.now() + (30 * 60 * 1000); // 30 minutes
-    
-    // Store session (in production, use Redis for distributed sessions and scalability)
-    // Example: const redisClient = require('redis').createClient(); redisClient.set(sessionId, JSON.stringify({expires, ip: req.ip}));
-    global.sessions = global.sessions || new Map();
-    global.sessions.set(sessionId, { expires, ip: req.ip });
-    
-    res.json({ 
-        sessionId,
-        expires,
-        cesiumProxyUrl: '/api/cesium-assets'
-    });
+// Session storage (use Redis in production)
+const sessions = new Map();
+
+// Generate secure session token for Cesium proxy
+app.get('/api/session', apiRateLimit, (req, res) => {
+    try {
+        const sessionId = crypto.randomBytes(32).toString('hex');
+        const expires = Date.now() + (60 * 60 * 1000); // 1 hour
+        const ip = req.ip || req.connection.remoteAddress;
+        
+        // Store session with IP binding
+        sessions.set(sessionId, { 
+            expires, 
+            ip,
+            created: Date.now(),
+            requests: 0
+        });
+        
+        console.log(`Session created: ${sessionId} for IP: ${ip}`);
+        
+        res.json({ 
+            sessionId,
+            expires,
+            cesiumProxyUrl: '/api/cesium-proxy',
+            status: 'active'
+        });
+        
+    } catch (error) {
+        console.error('Session creation error:', error);
+        res.status(500).json({ error: 'Failed to create session' });
+    }
 });
 
-// Secure Cesium asset proxy (optimized for performance with caching headers)
-app.get('/api/cesium-assets/*', async (req, res) => {
+// Validate session middleware
+function validateSession(req, res, next) {
+    const sessionId = req.headers['x-session-id'];
+    const ip = req.ip || req.connection.remoteAddress;
+    
+    if (!sessionId || !sessions.has(sessionId)) {
+        return res.status(401).json({ error: 'Invalid or missing session' });
+    }
+    
+    const session = sessions.get(sessionId);
+    
+    if (Date.now() > session.expires) {
+        sessions.delete(sessionId);
+        return res.status(401).json({ error: 'Session expired' });
+    }
+    
+    if (session.ip !== ip) {
+        sessions.delete(sessionId);
+        return res.status(401).json({ error: 'Session IP mismatch' });
+    }
+    
+    // Update session activity
+    session.requests++;
+    req.session = session;
+    
+    next();
+}
+
+// Secure Cesium Ion proxy with comprehensive asset support
+app.get('/api/cesium-proxy/*', validateSession, async (req, res) => {
     try {
-        const sessionId = req.headers['x-session-id'];
-        
-        // Validate session (strict IP validation for security)
-        if (!sessionId || !global.sessions || !global.sessions.has(sessionId)) {
-            return res.status(401).json({ error: 'Invalid session' });
-        }
-        
-        const session = global.sessions.get(sessionId);
-        if (Date.now() > session.expires || session.ip !== req.ip) {
-            global.sessions.delete(sessionId);
-            return res.status(401).json({ error: 'Session expired or invalid' });
-        }
-        
-        // Construct Cesium URL
         const assetPath = req.params[0];
         const queryString = req.url.split('?')[1] || '';
+        
+        // Construct proper Cesium URL based on asset type
         let cesiumUrl;
         
-        if (assetPath.startsWith('v1/assets/')) {
+        if (assetPath.startsWith('v1/') || assetPath.includes('/assets/')) {
+            // API endpoints
             cesiumUrl = `https://api.cesium.com/${assetPath}${queryString ? '?' + queryString : ''}`;
+        } else if (assetPath.match(/^\d+\//)) {
+            // Asset tiles with numeric ID
+            cesiumUrl = `https://assets.ion.cesium.com/${assetPath}${queryString ? '?' + queryString : ''}`;
         } else {
+            // General assets
             cesiumUrl = `https://assets.ion.cesium.com/${assetPath}${queryString ? '?' + queryString : ''}`;
         }
         
-        // Proxy request to Cesium
+        console.log(`Proxying: ${cesiumUrl}`);
+        
+        // Fetch from Cesium with proper headers
         const response = await fetch(cesiumUrl, {
             headers: {
                 'Authorization': `Bearer ${process.env.CESIUM_ION_TOKEN}`,
                 'Accept': req.headers.accept || '*/*',
-                'Accept-Encoding': 'gzip, deflate, br'
+                'Accept-Encoding': 'gzip, deflate, br',
+                'User-Agent': 'Mission-Control-Enterprise/2.0'
+            },
+            timeout: 30000
+        });
+        
+        // Forward status and headers
+        res.status(response.status);
+        
+        // Copy relevant headers
+        ['content-type', 'content-length', 'cache-control', 'etag', 'last-modified'].forEach(header => {
+            const value = response.headers.get(header);
+            if (value) {
+                res.setHeader(header, value);
             }
         });
         
-        // Forward response with caching for performance (enterprise optimization: adjust based on content)
-        res.status(response.status);
-        response.headers.forEach((value, key) => {
-            if (key.toLowerCase() !== 'content-encoding') {
-                res.setHeader(key, value);
-            }
-        });
+        // Set caching headers for performance
         if (response.status === 200) {
-            res.setHeader('Cache-Control', 'public, max-age=3600'); // 1 hour cache for static assets
+            res.setHeader('Cache-Control', 'public, max-age=3600');
         }
         
+        // Stream response
         const buffer = await response.buffer();
         res.send(buffer);
         
     } catch (error) {
         console.error('Cesium proxy error:', error);
-        res.status(500).json({ error: 'Proxy failed' });
+        res.status(500).json({ 
+            error: 'Proxy request failed',
+            details: error.message 
+        });
     }
 });
 
-// Real-time satellite data endpoint (optimized for reliability with multiple sources)
-app.get('/api/satellites/active', rateLimit, async (req, res) => {
+// Real-time satellite data with comprehensive coverage
+app.get('/api/satellites/live', apiRateLimit, async (req, res) => {
     try {
-        // Fetch from multiple sources for reliability
+        console.log('Fetching live satellite data...');
+        
+        // Fetch from multiple Celestrak sources for comprehensive coverage
         const sources = [
             'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=json',
             'https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=json',
-            'https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=json'
+            'https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=json',
+            'https://celestrak.org/NORAD/elements/gp.php?GROUP=weather&FORMAT=json',
+            'https://celestrak.org/NORAD/elements/gp.php?GROUP=noaa&FORMAT=json',
+            'https://celestrak.org/NORAD/elements/gp.php?GROUP=geo&FORMAT=json',
+            'https://celestrak.org/NORAD/elements/gp.php?GROUP=intelsat&FORMAT=json',
+            'https://celestrak.org/NORAD/elements/gp.php?GROUP=gps-ops&FORMAT=json',
+            'https://celestrak.org/NORAD/elements/gp.php?GROUP=galileo&FORMAT=json',
+            'https://celestrak.org/NORAD/elements/gp.php?GROUP=beidou&FORMAT=json',
+            'https://celestrak.org/NORAD/elements/gp.php?GROUP=sbas&FORMAT=json',
+            'https://celestrak.org/NORAD/elements/gp.php?GROUP=nnss&FORMAT=json',
+            'https://celestrak.org/NORAD/elements/gp.php?GROUP=musson&FORMAT=json',
+            'https://celestrak.org/NORAD/elements/gp.php?GROUP=science&FORMAT=json',
+            'https://celestrak.org/NORAD/elements/gp.php?GROUP=engineering&FORMAT=json',
+            'https://celestrak.org/NORAD/elements/gp.php?GROUP=education&FORMAT=json',
+            'https://celestrak.org/NORAD/elements/gp.php?GROUP=military&FORMAT=json',
+            'https://celestrak.org/NORAD/elements/gp.php?GROUP=radar&FORMAT=json',
+            'https://celestrak.org/NORAD/elements/gp.php?GROUP=cubesat&FORMAT=json',
+            'https://celestrak.org/NORAD/elements/gp.php?GROUP=other&FORMAT=json'
         ];
         
         const allSatellites = [];
+        const failedSources = [];
         
-        for (const source of sources) {
+        // Fetch all sources in parallel for performance
+        const fetchPromises = sources.map(async (source) => {
             try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
+                
                 const response = await fetch(source, {
-                    timeout: 15000,
-                    headers: { 'User-Agent': 'Mission-Control-Enterprise/1.0' }
+                    signal: controller.signal,
+                    headers: { 
+                        'User-Agent': 'Mission-Control-Enterprise/2.0',
+                        'Accept': 'application/json'
+                    }
                 });
+                
+                clearTimeout(timeoutId);
                 
                 if (response.ok) {
                     const data = await response.json();
-                    allSatellites.push(...data);
+                    return data;
                 }
-            } catch (sourceError) {
-                console.warn(`Source ${source} failed:`, sourceError.message);
+                throw new Error(`HTTP ${response.status}`);
+                
+            } catch (error) {
+                failedSources.push({ source, error: error.message });
+                return [];
             }
-        }
+        });
         
-        // Remove duplicates by NORAD ID (performance optimization: use Map for O(1) lookups)
+        const results = await Promise.all(fetchPromises);
+        results.forEach(data => {
+            if (Array.isArray(data)) {
+                allSatellites.push(...data);
+            }
+        });
+        
+        // Remove duplicates by NORAD ID and add metadata
         const uniqueSatellites = Array.from(
-            new Map(allSatellites.map(sat => [sat.NORAD_CAT_ID, sat])).values()
+            new Map(allSatellites.map(sat => [sat.NORAD_CAT_ID, {
+                ...sat,
+                EPOCH_TIME: new Date(sat.EPOCH).getTime(),
+                TLE_VALID: true,
+                DATA_SOURCE: 'CELESTRAK'
+            }])).values()
         );
         
+        console.log(`Loaded ${uniqueSatellites.length} unique satellites from ${sources.length - failedSources.length} sources`);
+        
         res.json({
+            success: true,
             count: uniqueSatellites.length,
             timestamp: new Date().toISOString(),
+            sources: {
+                total: sources.length,
+                successful: sources.length - failedSources.length,
+                failed: failedSources
+            },
             satellites: uniqueSatellites
         });
         
     } catch (error) {
-        console.error('Satellite data error:', error);
-        res.status(500).json({ error: 'Failed to fetch satellite data' });
+        console.error('Satellite data fetch error:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'Failed to fetch satellite data',
+            details: error.message 
+        });
     }
 });
 
-// Satellite detail endpoint with real SATCAT data
-app.get('/api/satellite/:noradId', rateLimit, async (req, res) => {
+// Get detailed satellite information
+app.get('/api/satellite/:noradId/details', apiRateLimit, async (req, res) => {
     try {
         const noradId = req.params.noradId;
         
-        // Fetch from SATCAT database
+        // Fetch detailed information from SATCAT
         const response = await fetch(
             `https://celestrak.org/satcat/records.php?CATNR=${noradId}&FORMAT=json`,
             {
                 timeout: 10000,
-                headers: { 'User-Agent': 'Mission-Control-Enterprise/1.0' }
+                headers: { 
+                    'User-Agent': 'Mission-Control-Enterprise/2.0',
+                    'Accept': 'application/json'
+                }
             }
         );
         
         if (!response.ok) {
-            throw new Error('SATCAT query failed');
+            throw new Error(`SATCAT query failed: ${response.status}`);
         }
         
         const data = await response.json();
-        res.json(data[0] || null);
+        const satelliteInfo = data[0];
+        
+        if (!satelliteInfo) {
+            return res.status(404).json({ error: 'Satellite not found' });
+        }
+        
+        res.json({
+            success: true,
+            satellite: satelliteInfo,
+            timestamp: new Date().toISOString()
+        });
         
     } catch (error) {
-        console.error('SATCAT query error:', error);
-        res.status(500).json({ error: 'Failed to fetch satellite details' });
+        console.error('Satellite details error:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'Failed to fetch satellite details',
+            details: error.message 
+        });
     }
 });
 
-// Real-time orbital calculations endpoint
-app.get('/api/satellite/:noradId/position', rateLimit, async (req, res) => {
+// Real-time position calculation
+app.get('/api/satellite/:noradId/position', apiRateLimit, async (req, res) => {
     try {
         const noradId = req.params.noradId;
+        const timestamp = req.query.timestamp ? new Date(req.query.timestamp) : new Date();
         
         // Fetch current TLE
         const tleResponse = await fetch(
             `https://celestrak.org/NORAD/elements/gp.php?CATNR=${noradId}&FORMAT=json`,
             {
                 timeout: 10000,
-                headers: { 'User-Agent': 'Mission-Control-Enterprise/1.0' }
+                headers: { 
+                    'User-Agent': 'Mission-Control-Enterprise/2.0',
+                    'Accept': 'application/json'
+                }
             }
         );
         
         if (!tleResponse.ok) {
-            throw new Error('TLE fetch failed');
+            throw new Error(`TLE fetch failed: ${tleResponse.status}`);
         }
         
         const tleData = await tleResponse.json();
         if (!tleData.length) {
-            return res.status(404).json({ error: 'Satellite not found' });
+            return res.status(404).json({ error: 'Satellite TLE not found' });
         }
         
         const tle = tleData[0];
         const satrec = satellite.twoline2satrec(tle.TLE_LINE1, tle.TLE_LINE2);
         
-        // Calculate current position
-        const now = new Date();
-        const positionAndVelocity = satellite.propagate(satrec, now);
-        
-        if (!positionAndVelocity.position) {
-            throw new Error('Propagation failed');
+        if (satrec.error !== 0) {
+            throw new Error('Invalid TLE data');
         }
         
-        const gmst = satellite.gstime(now);
+        // Calculate position
+        const positionAndVelocity = satellite.propagate(satrec, timestamp);
+        
+        if (!positionAndVelocity.position) {
+            throw new Error('Position calculation failed');
+        }
+        
+        const gmst = satellite.gstime(timestamp);
         const position = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
         
+        const velocity = Math.sqrt(
+            positionAndVelocity.velocity.x ** 2 +
+            positionAndVelocity.velocity.y ** 2 +
+            positionAndVelocity.velocity.z ** 2
+        );
+        
         res.json({
-            timestamp: now.toISOString(),
+            success: true,
             noradId: tle.NORAD_CAT_ID,
             name: tle.OBJECT_NAME,
-            latitude: satellite.degreesLat(position.latitude),
-            longitude: satellite.degreesLong(position.longitude),
-            altitude: position.height,
-            velocity: Math.sqrt(
-                positionAndVelocity.velocity.x ** 2 +
-                positionAndVelocity.velocity.y ** 2 +
-                positionAndVelocity.velocity.z ** 2
-            )
+            timestamp: timestamp.toISOString(),
+            position: {
+                latitude: satellite.degreesLat(position.latitude),
+                longitude: satellite.degreesLong(position.longitude),
+                altitude: position.height
+            },
+            velocity: velocity,
+            tle: {
+                line1: tle.TLE_LINE1,
+                line2: tle.TLE_LINE2,
+                epoch: tle.EPOCH
+            }
         });
         
     } catch (error) {
         console.error('Position calculation error:', error);
-        res.status(500).json({ error: 'Failed to calculate position' });
+        res.status(500).json({ 
+            success: false,
+            error: 'Failed to calculate position',
+            details: error.message 
+        });
     }
 });
 
-// Health check (enhanced for monitoring in CI/CD pipelines)
+// System health check
 app.get('/api/health', (req, res) => {
+    const uptime = process.uptime();
+    const memUsage = process.memoryUsage();
+    
     res.json({
         status: 'operational',
         timestamp: new Date().toISOString(),
-        version: '1.0.0',
+        version: '2.0.0',
+        uptime: Math.floor(uptime),
+        memory: {
+            used: Math.round(memUsage.heapUsed / 1024 / 1024),
+            total: Math.round(memUsage.heapTotal / 1024 / 1024)
+        },
         services: {
             cesiumProxy: 'active',
             satelliteData: 'active',
             sessionManager: 'active'
+        },
+        sessions: {
+            active: sessions.size
         }
     });
 });
 
-// Cleanup expired sessions (in production, use a distributed scheduler)
+// Cleanup expired sessions
 setInterval(() => {
-    if (global.sessions) {
-        const now = Date.now();
-        for (const [id, session] of global.sessions.entries()) {
-            if (now > session.expires) {
-                global.sessions.delete(id);
-            }
+    const now = Date.now();
+    let cleaned = 0;
+    
+    for (const [id, session] of sessions.entries()) {
+        if (now > session.expires) {
+            sessions.delete(id);
+            cleaned++;
         }
+    }
+    
+    if (cleaned > 0) {
+        console.log(`Cleaned ${cleaned} expired sessions`);
     }
 }, 60000); // Every minute
 
-// Error handling (log for monitoring)
+// Global error handler
 app.use((err, req, res, next) => {
     console.error('Server error:', err);
     res.status(500).json({
         error: 'Internal server error',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        requestId: req.id || 'unknown'
     });
 });
 
-// Serve SPA
+// Catch-all for SPA
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public/index.html'));
 });
 
+// Graceful shutdown
+process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    process.exit(0);
+});
+
+process.on('SIGINT', () => {
+    console.log('SIGINT received, shutting down gracefully');
+    process.exit(0);
+});
+
 app.listen(port, () => {
-    console.log(`Mission Control Backend operational on port ${port}`);
-    console.log(`Cesium proxy: Secured with session management`);
+    console.log(`Mission Control Backend v2.0 operational on port ${port}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    // Scalability note: For production, deploy with PM2 or Kubernetes for clustering/load balancing.
-    // Database optimization: If adding DB (e.g., MongoDB for caching satellite data), use indexes on NORAD_ID and TTL for expiration.
-    // CI/CD: Use GitHub Actions/Jenkins for automated testing (unit/integration) and deployment to Render.
-    // Testing: Implement Jest for unit tests on endpoints; aim for 80%+ coverage.
+    console.log(`Cesium proxy: Secured with session management`);
+    console.log(`Memory limit: ${process.env.NODE_OPTIONS || 'default'}`);
+    
+    // Display configuration
+    console.log('\n=== SECURITY STATUS ===');
+    console.log(`✓ Cesium Ion token: ${process.env.CESIUM_ION_TOKEN ? 'Configured' : 'MISSING'}`);
+    console.log(`✓ Rate limiting: Active`);
+    console.log(`✓ Session management: Active`);
+    console.log(`✓ CORS protection: Active`);
+    console.log(`✓ Security headers: Active`);
+    console.log('========================\n');
 });

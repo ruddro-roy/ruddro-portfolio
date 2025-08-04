@@ -1,826 +1,881 @@
 /**
- * Mission Control - Enterprise Grade Satellite Tracking
- * Secure implementation with real-time data processing
- * Enhanced for precise Cesium Ion integration without token exposure, super realistic imagery, and region analysis.
+ * Mission Control Enterprise - Real-time Satellite Tracking System
+ * Secure implementation with Cesium Ion integration and comprehensive satellite data
+ * Features: Real-time 3D Earth, satellite tracking, orbital mechanics, enterprise security
  */
 
-// Configuration
+// Application Configuration
 const CONFIG = {
     API_BASE: window.location.origin,
-    UPDATE_INTERVAL: 30000, // 30 seconds
-    MAX_SATELLITES: 5000,
-    ORBIT_PROPAGATION_MINUTES: 90,
-    ORBIT_SAMPLE_POINTS: 120,
-    REGION_ANALYSIS_INTERVAL_MIN: 5, // Sample every 5 minutes for 24h analysis
-    REGION_ANALYSIS_HOURS: 24
+    UPDATE_INTERVAL: 30000, // 30 seconds for real-time updates
+    MAX_SATELLITES_RENDER: 8000, // Enterprise scale
+    ORBIT_PROPAGATION_MINUTES: 120, // 2 orbits
+    ORBIT_SAMPLE_POINTS: 180,
+    SEARCH_DEBOUNCE_MS: 300,
+    SESSION_REFRESH_INTERVAL: 25 * 60 * 1000, // 25 minutes
+    PERFORMANCE_MONITOR_INTERVAL: 1000,
+    CESIUM_BASE_LAYER_ASSET_ID: 3812, // High-resolution Bing Maps
+    CESIUM_TERRAIN_ASSET_ID: 1, // Cesium World Terrain
 };
 
-// State management
-const state = {
+// Application State
+const AppState = {
+    // Core system
+    viewer: null,
     session: null,
     satellites: new Map(),
     selectedSatellite: null,
-    viewer: null,
+    
+    // Rendering state
     entities: new Map(),
-    lastUpdate: null,
-    cesiumReady: false,
-    drawingRegion: false,
-    regionEntity: null,
-    regionPositions: [],
-    startPosition: null
+    showOrbits: false,
+    showLabels: true,
+    enableDayNight: true,
+    currentFilter: 'all',
+    
+    // System status
+    systemReady: false,
+    lastDataUpdate: null,
+    connectionStatus: 'disconnected',
+    errorCount: 0,
+    
+    // Performance monitoring
+    frameCount: 0,
+    lastFrameTime: 0,
+    fps: 0,
+    
+    // UI state
+    searchResults: [],
+    searchTimeout: null,
 };
 
-// Session management for secure Cesium access
-async function initializeSession() {
-    try {
-        const response = await fetch(`${CONFIG.API_BASE}/api/session`);
-        if (!response.ok) throw new Error('Session initialization failed');
-        
-        state.session = await response.json();
-        console.log('Session established:', state.session.sessionId);
-        
-        // Refresh session before expiry
-        setTimeout(initializeSession, 25 * 60 * 1000); // 25 minutes
-        
-        return state.session;
-    } catch (error) {
-        console.error('Session error:', error);
-        throw error;
-    }
-}
+// Utility Functions
+const Utils = {
+    formatDate: (date) => {
+        return new Intl.DateTimeFormat('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            timeZoneName: 'short'
+        }).format(new Date(date));
+    },
 
-// Initialize Cesium with secure proxy
-async function initializeCesium() {
-    try {
-        if (!state.session) {
-            throw new Error('No valid session');
-        }
-        
-        // Configure Cesium to use our proxy
-        Cesium.Ion.defaultAccessToken = undefined; // Disable direct token usage
-        
-        // Override Cesium resource loading for security and proxying
-        const originalResource = Cesium.Resource;
-        Cesium.Resource = function(options) {
-            if (typeof options === 'string' && options.includes('cesium.com')) {
-                // Redirect Cesium Ion requests through our proxy
-                options = options.replace('https://api.cesium.com/', `${CONFIG.API_BASE}/api/cesium-assets/`);
-                options = options.replace('https://assets.ion.cesium.com/', `${CONFIG.API_BASE}/api/cesium-assets/`);
-                options = options.replace('https://assets.cesium.com/', `${CONFIG.API_BASE}/api/cesium-assets/`);
-            }
-            
-            const resource = new originalResource(options);
-            
-            // Add session header to all Cesium requests
-            const originalFetch = resource._makeRequest;
-            resource._makeRequest = function(options) {
-                options.headers = options.headers || {};
-                options.headers['X-Session-ID'] = state.session.sessionId;
-                return originalFetch.call(this, options);
+    formatNumber: (num, decimals = 2) => {
+        return parseFloat(num).toFixed(decimals);
+    },
+
+    calculateDistance: (lat1, lon1, lat2, lon2) => {
+        const R = 6371; // Earth's radius in km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    },
+
+    debounce: (func, wait) => {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
             };
-            
-            return resource;
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
         };
+    },
+
+    showMessage: (message, type = 'info', duration = 5000) => {
+        const container = document.getElementById('messageContainer');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = type === 'error' ? 'error-message' : 'success-message';
+        messageDiv.textContent = message;
         
-        // Initialize viewer with enterprise configuration (using Sentinel-2 for super realistic imagery)
-        state.viewer = new Cesium.Viewer('cesiumContainer', {
-            imageryProvider: new Cesium.UrlTemplateImageryProvider({
-                url: `${CONFIG.API_BASE}/api/cesium-assets/3954/{z}/{x}/{y}.png`  // Sentinel-2 asset ID 3954 for realistic global imagery
-            }),
-            
-            terrainProvider: new Cesium.CesiumTerrainProvider({
-                url: `${CONFIG.API_BASE}/api/cesium-assets/1`  // Cesium World Terrain asset ID 1
-            }),
-            
-            skyBox: false, // Disable for performance
-            skyAtmosphere: new Cesium.SkyAtmosphere(),
-            
-            // Minimal UI for enterprise use
-            baseLayerPicker: false,
-            geocoder: false,
-            homeButton: true,
-            infoBox: false,
-            navigationHelpButton: false,
-            sceneModePicker: true,
-            timeline: false,
-            animation: false,
-            fullscreenButton: true,
-            vrButton: false,
-            creditContainer: document.createElement('div')
-        });
+        container.appendChild(messageDiv);
         
-        // Configure scene for optimal performance and real-time rendering
-        const scene = state.viewer.scene;
-        scene.globe.enableLighting = true;
-        scene.globe.depthTestAgainstTerrain = false;
-        scene.globe.showGroundAtmosphere = true;
-        scene.requestRenderMode = true;
-        scene.maximumRenderTimeChange = Infinity;
-        
-        // Set initial view
-        state.viewer.camera.setView({
-            destination: Cesium.Cartesian3.fromDegrees(0, 0, 20000000),
-            orientation: {
-                heading: 0,
-                pitch: -Cesium.Math.PI_OVER_TWO,
-                roll: 0
+        setTimeout(() => {
+            if (messageDiv.parentNode) {
+                messageDiv.parentNode.removeChild(messageDiv);
             }
-        });
-        
-        // Setup event handlers
-        state.viewer.screenSpaceEventHandler.setInputAction(
-            handleSatelliteClick,
-            Cesium.ScreenSpaceEventType.LEFT_CLICK
-        );
-        
-        state.cesiumReady = true;
-        console.log('Cesium initialized with secure proxy');
-        
-    } catch (error) {
-        console.error('Cesium initialization failed:', error);
-        throw error;
+        }, duration);
     }
-}
+};
 
-// Load real satellite data (full public information from Celestrak)
-async function loadSatelliteData() {
-    try {
-        updateLoadingStatus('Fetching satellite data...');
-        
-        const response = await fetch(`${CONFIG.API_BASE}/api/satellites/active`);
-        if (!response.ok) throw new Error('Failed to fetch satellites');
-        
-        const data = await response.json();
-        console.log(`Loaded ${data.count} satellites`);
-        
-        // Process satellites
-        state.satellites.clear();
-        data.satellites.forEach(sat => {
-            state.satellites.set(sat.NORAD_CAT_ID, sat);
-        });
-        
-        state.lastUpdate = new Date(data.timestamp);
-        
-        // Update UI
-        populateSearchList();
-        
-        // Render satellites
-        if (state.cesiumReady) {
-            renderSatellites();
-        }
-        
-        updateLoadingStatus(null);
-        
-    } catch (error) {
-        console.error('Satellite data error:', error);
-        updateLoadingStatus('Error loading satellite data');
-    }
-}
-
-// Render satellites in 3D (with precise orbit propagation)
-function renderSatellites() {
-    if (!state.viewer || !state.cesiumReady) return;
-    
-    // Clear existing entities
-    state.entities.forEach(entity => {
-        state.viewer.entities.remove(entity);
-    });
-    state.entities.clear();
-    
-    let rendered = 0;
-    const maxToRender = Math.min(state.satellites.size, CONFIG.MAX_SATELLITES);
-    
-    for (const [noradId, satData] of state.satellites) {
-        if (rendered >= maxToRender) break;
-        
+// Session Management
+const SessionManager = {
+    async initialize() {
         try {
-            // Parse TLE
-            const satrec = satellite.twoline2satrec(satData.TLE_LINE1, satData.TLE_LINE2);
-            if (satrec.error !== 0) continue;
+            console.log('Initializing secure session...');
             
-            // Calculate orbit (precise using SGP4 propagation)
-            const orbitPath = calculateOrbitPath(satrec);
-            if (!orbitPath) continue;
-            
-            // Determine visual properties based on satellite characteristics
-            const color = determineSatelliteColor(satData);
-            const size = determineSatelliteSize(satData);
-            
-            // Create entity
-            const entity = state.viewer.entities.add({
-                id: noradId,
-                name: satData.OBJECT_NAME,
-                position: orbitPath,
-                
-                point: {
-                    pixelSize: size,
-                    color: color,
-                    outlineColor: Cesium.Color.WHITE,
-                    outlineWidth: 1,
-                    disableDepthTestDistance: Number.POSITIVE_INFINITY
-                },
-                
-                path: {
-                    resolution: 120,
-                    material: new Cesium.PolylineGlowMaterialProperty({
-                        glowPower: 0.1,
-                        color: color.withAlpha(0.5)
-                    }),
-                    width: 2,
-                    leadTime: CONFIG.ORBIT_PROPAGATION_MINUTES * 60,
-                    trailTime: CONFIG.ORBIT_PROPAGATION_MINUTES * 60,
-                    show: false // Show only when selected
-                },
-                
-                properties: satData
+            const response = await fetch(`${CONFIG.API_BASE}/api/session`, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
             });
-            
-            state.entities.set(noradId, entity);
-            rendered++;
-            
+
+            if (!response.ok) {
+                throw new Error(`Session initialization failed: ${response.status}`);
+            }
+
+            AppState.session = await response.json();
+            console.log('Session established:', AppState.session.sessionId);
+
+            // Schedule session refresh before expiry
+            setTimeout(() => {
+                this.initialize();
+            }, CONFIG.SESSION_REFRESH_INTERVAL);
+
+            return AppState.session;
+
         } catch (error) {
-            console.warn(`Failed to render satellite ${noradId}:`, error.message);
+            console.error('Session initialization error:', error);
+            Utils.showMessage('Failed to establish secure session', 'error');
+            throw error;
         }
-    }
-    
-    console.log(`Rendered ${rendered} satellites`);
-    state.viewer.scene.requestRender();
-}
+    },
 
-// Calculate orbit path (precise real-time propagation)
-function calculateOrbitPath(satrec) {
-    try {
-        const startTime = Cesium.JulianDate.now();
-        const stopTime = Cesium.JulianDate.addMinutes(startTime, CONFIG.ORBIT_PROPAGATION_MINUTES, new Cesium.JulianDate());
-        const property = new Cesium.SampledPositionProperty();
-        
-        const timeStep = CONFIG.ORBIT_PROPAGATION_MINUTES * 60 / CONFIG.ORBIT_SAMPLE_POINTS;
-        
-        for (let i = 0; i <= CONFIG.ORBIT_SAMPLE_POINTS; i++) {
-            const time = Cesium.JulianDate.addSeconds(startTime, i * timeStep, new Cesium.JulianDate());
-            const jsDate = Cesium.JulianDate.toDate(time);
-            
-            const positionAndVelocity = satellite.propagate(satrec, jsDate);
-            if (!positionAndVelocity.position) continue;
-            
-            const positionEci = positionAndVelocity.position;
-            const positionInertial = new Cesium.Cartesian3(
-                positionEci.x * 1000,
-                positionEci.y * 1000,
-                positionEci.z * 1000
-            );
-            
-            const positionFixed = Cesium.Transforms.computeIcrfToFixed(time, new Cesium.Matrix3())
-                ? Cesium.Matrix3.multiplyByVector(
-                    Cesium.Transforms.computeIcrfToFixed(time, new Cesium.Matrix3()),
-                    positionInertial,
-                    new Cesium.Cartesian3()
-                  )
-                : positionInertial;
-            
-            property.addSample(time, positionFixed);
+    getHeaders() {
+        if (!AppState.session) {
+            throw new Error('No active session');
         }
-        
-        return property;
-        
-    } catch (error) {
-        console.error('Orbit calculation error:', error);
-        return null;
+
+        return {
+            'X-Session-ID': AppState.session.sessionId,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        };
     }
-}
+};
 
-// Determine satellite color and category
-function getSatelliteCategoryAndColor(satData) {
-    const name = satData.OBJECT_NAME.toUpperCase();
-    const owner = (satData.OWNER || '').toUpperCase();
-    let category = 'Other';
-    let color = Cesium.Color.GRAY;
-    
-    if (name.includes('ISS') || name.includes('TIANGONG')) {
-        category = 'Space Station';
-        color = Cesium.Color.WHITE;
-    } else if (name.includes('GPS') || name.includes('GLONASS') || name.includes('GALILEO') || name.includes('BEIDOU')) {
-        category = 'Navigation';
-        color = Cesium.Color.LIME;
-    } else if (name.includes('STARLINK') || name.includes('ONEWEB')) {
-        category = 'Communication';
-        color = Cesium.Color.CYAN;
-    } else if (name.includes('GOES') || name.includes('NOAA') || name.includes('METEOSAT')) {
-        category = 'Weather';
-        color = Cesium.Color.ORANGE;
-    } else if (name.includes('HUBBLE') || name.includes('LANDSAT') || name.includes('SENTINEL')) {
-        category = 'Scientific';
-        color = Cesium.Color.MAGENTA;
-    } else if (satData.OBJECT_TYPE === 'DEBRIS') {
-        category = 'Debris';
-        color = Cesium.Color.RED;
-    } else if (satData.OBJECT_TYPE === 'ROCKET BODY') {
-        category = 'Rocket Body';
-        color = Cesium.Color.YELLOW;
-    } else if (owner.includes('US')) {
-        category = 'US Military/Civil';
-        color = Cesium.Color.DODGERBLUE;
-    } else if (owner.includes('RUSS')) {
-        category = 'Russian';
-        color = Cesium.Color.RED;
-    } else if (owner.includes('PRC')) {
-        category = 'Chinese';
-        color = Cesium.Color.YELLOW;
-    } else if (owner.includes('ESA')) {
-        category = 'ESA';
-        color = Cesium.Color.LIGHTBLUE;
-    }
-    
-    return { category, color };
-}
-
-// Determine satellite size based on RCS or type
-function determineSatelliteSize(satData) {
-    const rcs = satData.RCS_SIZE;
-    
-    if (rcs === 'LARGE') return 12;
-    if (rcs === 'MEDIUM') return 8;
-    if (rcs === 'SMALL') return 6;
-    
-    // Special cases
-    if (satData.OBJECT_NAME.includes('ISS')) return 16;
-    if (satData.OBJECT_NAME.includes('DEBRIS')) return 4;
-    
-    return 8;
-}
-
-// Handle satellite selection
-async function handleSatelliteClick(movement) {
-    const pickedObject = state.viewer.scene.pick(movement.position);
-    
-    if (Cesium.defined(pickedObject) && pickedObject.id) {
-        const noradId = pickedObject.id.id;
-        await selectSatellite(noradId);
-    }
-}
-
-// Select satellite and display information (using full public data)
-async function selectSatellite(noradId) {
-    try {
-        // Clear previous selection
-        if (state.selectedSatellite) {
-            const prevEntity = state.entities.get(state.selectedSatellite);
-            if (prevEntity) {
-                prevEntity.path.show = false;
-                prevEntity.point.pixelSize = determineSatelliteSize(prevEntity.properties._value);
+// Cesium Integration
+const CesiumManager = {
+    async initialize() {
+        try {
+            if (!AppState.session) {
+                throw new Error('Session required for Cesium initialization');
             }
-        }
-        
-        // Highlight new selection
-        const entity = state.entities.get(noradId);
-        if (!entity) return;
-        
-        entity.path.show = true;
-        entity.point.pixelSize = 16;
-        state.selectedSatellite = noradId;
-        
-        // Fetch detailed information
-        updateInfoPanel('Loading satellite details...');
-        
-        const [detailResponse, positionResponse] = await Promise.all([
-            fetch(`${CONFIG.API_BASE}/api/satellite/${noradId}`),
-            fetch(`${CONFIG.API_BASE}/api/satellite/${noradId}/position`)
-        ]);
-        
-        const details = await detailResponse.json();
-        const position = await positionResponse.json();
-        
-        displaySatelliteInfo(details, position);
-        
-        // Track satellite
-        state.viewer.trackedEntity = entity;
-        
-    } catch (error) {
-        console.error('Selection error:', error);
-        updateInfoPanel('Error loading satellite information');
-    }
-}
 
-// Display satellite information (full public data from sources, no predefined placeholders)
-function displaySatelliteInfo(details, position) {
-    if (!details) {
-        updateInfoPanel('No information available');
-        return;
-    }
-    
-    const infoPanel = document.getElementById('infoPanel');
-    
-    infoPanel.innerHTML = `
-        <div class="info-header">
-            <h2>${details.OBJECT_NAME || 'Unknown'}</h2>
-            <p>NORAD: ${details.NORAD_CAT_ID} | COSPAR: ${details.OBJECT_ID || 'N/A'}</p>
-        </div>
-        
-        <div class="info-section">
-            <h3>IDENTIFICATION</h3>
-            <div class="info-grid">
-                <div class="info-item">
-                    <span class="label">Object Type</span>
-                    <span class="value">${details.OBJECT_TYPE || 'Unknown'}</span>
-                </div>
-                <div class="info-item">
-                    <span class="label">Owner</span>
-                    <span class="value">${details.OWNER || 'Unknown'}</span>
-                </div>
-                <div class="info-item">
-                    <span class="label">Country</span>
-                    <span class="value">${details.COUNTRY || 'Unknown'}</span>
-                </div>
-                <div class="info-item">
-                    <span class="label">Launch Date</span>
-                    <span class="value">${details.LAUNCH_DATE || 'Unknown'}</span>
-                </div>
-                <div class="info-item">
-                    <span class="label">Launch Site</span>
-                    <span class="value">${details.LAUNCH_SITE || 'Unknown'}</span>
-                </div>
-                <div class="info-item">
-                    <span class="label">Decay Date</span>
-                    <span class="value">${details.DECAY_DATE || 'Active'}</span>
-                </div>
-            </div>
-        </div>
-        
-        <div class="info-section">
-            <h3>ORBITAL PARAMETERS</h3>
-            <div class="info-grid">
-                <div class="info-item">
-                    <span class="label">Period (min)</span>
-                    <span class="value">${details.PERIOD || 'N/A'}</span>
-                </div>
-                <div class="info-item">
-                    <span class="label">Inclination (°)</span>
-                    <span class="value">${details.INCLINATION || 'N/A'}</span>
-                </div>
-                <div class="info-item">
-                    <span class="label">Apogee (km)</span>
-                    <span class="value">${details.APOGEE || 'N/A'}</span>
-                </div>
-                <div class="info-item">
-                    <span class="label">Perigee (km)</span>
-                    <span class="value">${details.PERIGEE || 'N/A'}</span>
-                </div>
-                <div class="info-item">
-                    <span class="label">RCS Size</span>
-                    <span class="value">${details.RCS_SIZE || 'Unknown'}</span>
-                </div>
-                <div class="info-item">
-                    <span class="label">Launch Mass (kg)</span>
-                    <span class="value">${details.LAUNCH_MASS || 'Unknown'}</span>
-                </div>
-            </div>
-        </div>
-        
-        ${position ? `
-        <div class="info-section">
-            <h3>CURRENT POSITION</h3>
-            <div class="info-grid">
-                <div class="info-item">
-                    <span class="label">Latitude</span>
-                    <span class="value">${position.latitude.toFixed(4)}°</span>
-                </div>
-                <div class="info-item">
-                    <span class="label">Longitude</span>
-                    <span class="value">${position.longitude.toFixed(4)}°</span>
-                </div>
-                <div class="info-item">
-                    <span class="label">Altitude</span>
-                    <span class="value">${position.altitude.toFixed(2)} km</span>
-                </div>
-                <div class="info-item">
-                    <span class="label">Velocity</span>
-                    <span class="value">${position.velocity.toFixed(3)} km/s</span>
-                </div>
-                <div class="info-item">
-                    <span class="label">Timestamp</span>
-                    <span class="value">${new Date(position.timestamp).toLocaleTimeString()}</span>
-                </div>
-            </div>
-        </div>
-        ` : ''}
-        
-        <div class="info-section">
-            <p style="font-size: 0.9rem; color: #888; margin-top: 20px;">
-                Data source: CelesTrak/SATCAT<br>
-                Last updated: ${state.lastUpdate ? state.lastUpdate.toLocaleString() : 'Unknown'}
-            </p>
-        </div>
-    `;
-}
+            updateLoadingStatus('Configuring Cesium Ion...');
 
-// Start region drawing
-function startRegionDrawing() {
-    state.drawingRegion = true;
-    state.regionPositions = [];
-    state.startPosition = null;
-    
-    // Temporary handler for drawing rectangle
-    const handler = new Cesium.ScreenSpaceEventHandler(state.viewer.scene.canvas);
-    
-    handler.setInputAction((movement) => {
-        const cartesian = state.viewer.camera.pickEllipsoid(movement.position);
-        if (cartesian) {
-            const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
-            state.startPosition = {
-                lon: Cesium.Math.toDegrees(cartographic.longitude),
-                lat: Cesium.Math.toDegrees(cartographic.latitude)
+            // Configure Cesium to use our secure proxy
+            Cesium.Ion.defaultAccessToken = undefined;
+
+            // Create resource override for secure proxy access
+            const originalResource = Cesium.Resource.fetchJson;
+            Cesium.Resource.fetchJson = function(options) {
+                if (typeof options === 'object' && options.url) {
+                    options.url = this.proxyUrl(options.url);
+                    options.headers = { ...options.headers, ...SessionManager.getHeaders() };
+                }
+                return originalResource.call(this, options);
             };
-        }
-    }, Cesium.ScreenSpaceEventType.LEFT_DOWN);
-    
-    handler.setInputAction((movement) => {
-        if (!state.startPosition) return;
-        
-        const cartesian = state.viewer.camera.pickEllipsoid(movement.endPosition);
-        if (cartesian) {
-            const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
-            const endLon = Cesium.Math.toDegrees(cartographic.longitude);
-            const endLat = Cesium.Math.toDegrees(cartographic.latitude);
+
+            // Initialize Cesium Viewer with enterprise configuration
+            AppState.viewer = new Cesium.Viewer('cesiumContainer', {
+                // High-resolution imagery
+                imageryProvider: await Cesium.IonImageryProvider.fromAssetId(CONFIG.CESIUM_BASE_LAYER_ASSET_ID, {
+                    accessToken: undefined // Will use our proxy
+                }),
+
+                // World terrain
+                terrainProvider: await Cesium.CesiumTerrainProvider.fromIonAssetId(CONFIG.CESIUM_TERRAIN_ASSET_ID, {
+                    accessToken: undefined // Will use our proxy
+                }),
+
+                // Scene configuration for performance
+                scene3DOnly: false,
+                orderIndependentTranslucency: false,
+                contextOptions: {
+                    webgl: {
+                        alpha: false,
+                        depth: true,
+                        stencil: false,
+                        antialias: true,
+                        powerPreference: "high-performance"
+                    }
+                },
+
+                // UI configuration
+                animation: false,
+                timeline: false,
+                baseLayerPicker: false,
+                fullscreenButton: false,
+                geocoder: false,
+                homeButton: false,
+                infoBox: false,
+                sceneModePicker: false,
+                selectionIndicator: false,
+                navigationHelpButton: false,
+                navigationInstructionsInitiallyVisible: false,
+                creditContainer: document.createElement('div') // Hide credits
+            });
+
+            // Configure scene for real-time performance
+            const scene = AppState.viewer.scene;
+            scene.globe.enableLighting = AppState.enableDayNight;
+            scene.globe.dynamicAtmosphereLighting = true;
+            scene.globe.dynamicAtmosphereLightingFromSun = true;
+            scene.globe.showGroundAtmosphere = true;
+            scene.globe.depthTestAgainstTerrain = false;
+            scene.skyBox = new Cesium.SkyBox({
+                sources: {
+                    positiveX: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+                    negativeX: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+                    positiveY: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+                    negativeY: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+                    positiveZ: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+                    negativeZ: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+                }
+            });
+
+            // Set initial camera position
+            AppState.viewer.camera.setView({
+                destination: Cesium.Cartesian3.fromDegrees(0.0, 0.0, 25000000),
+                orientation: {
+                    heading: 0.0,
+                    pitch: -Cesium.Math.PI_OVER_TWO,
+                    roll: 0.0
+                }
+            });
+
+            // Setup event handlers
+            AppState.viewer.screenSpaceEventHandler.setInputAction(
+                this.onSatelliteClick.bind(this),
+                Cesium.ScreenSpaceEventType.LEFT_CLICK
+            );
+
+            updateStatus('cesium', 'active', 'Connected');
+            console.log('Cesium initialized successfully');
             
-            // Update rectangle
-            if (state.regionEntity) {
-                state.viewer.entities.remove(state.regionEntity);
+            return AppState.viewer;
+
+        } catch (error) {
+            console.error('Cesium initialization failed:', error);
+            updateStatus('cesium', 'error', 'Failed');
+            throw error;
+        }
+    },
+
+    proxyUrl(originalUrl) {
+        if (originalUrl.includes('cesium.com') || originalUrl.includes('ion.cesium.com')) {
+            // Replace Cesium URLs with our proxy
+            let proxyPath = originalUrl
+                .replace('https://api.cesium.com/', '')
+                .replace('https://assets.ion.cesium.com/', '')
+                .replace('https://assets.cesium.com/', '');
+            
+            return `${CONFIG.API_BASE}/api/cesium-proxy/${proxyPath}`;
+        }
+        return originalUrl;
+    },
+
+    onSatelliteClick(event) {
+        const pickedObject = AppState.viewer.scene.pick(event.position);
+        if (Cesium.defined(pickedObject) && Cesium.defined(pickedObject.id)) {
+            const entity = pickedObject.id;
+            if (entity.satellite) {
+                SatelliteManager.selectSatellite(entity.satellite.NORAD_CAT_ID);
             }
-            state.regionEntity = state.viewer.entities.add({
-                rectangle: {
-                    coordinates: Cesium.Rectangle.fromDegrees(
-                        Math.min(state.startPosition.lon, endLon),
-                        Math.min(state.startPosition.lat, endLat),
-                        Math.max(state.startPosition.lon, endLon),
-                        Math.max(state.startPosition.lat, endLat)
-                    ),
-                    material: Cesium.Color.RED.withAlpha(0.3),
-                    outline: true,
-                    outlineColor: Cesium.Color.RED
+        }
+    },
+
+    resetView() {
+        if (AppState.viewer) {
+            AppState.viewer.camera.setView({
+                destination: Cesium.Cartesian3.fromDegrees(0.0, 0.0, 25000000),
+                orientation: {
+                    heading: 0.0,
+                    pitch: -Cesium.Math.PI_OVER_TWO,
+                    roll: 0.0
                 }
             });
         }
-    }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
-    
-    handler.setInputAction((movement) => {
-        handler.destroy();
-        state.drawingRegion = false;
-        
-        const cartesian = state.viewer.camera.pickEllipsoid(movement.position);
-        if (cartesian && state.startPosition) {
-            const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
-            const endLon = Cesium.Math.toDegrees(cartographic.longitude);
-            const endLat = Cesium.Math.toDegrees(cartographic.latitude);
-            
-            const west = Math.min(state.startPosition.lon, endLon);
-            const south = Math.min(state.startPosition.lat, endLat);
-            const east = Math.max(state.startPosition.lon, endLon);
-            const north = Math.max(state.startPosition.lat, endLat);
-            
-            analyzeRegion({ west, south, east, north });
-        }
-        
-        if (state.regionEntity) {
-            state.viewer.entities.remove(state.regionEntity);
-            state.regionEntity = null;
-        }
-    }, Cesium.ScreenSpaceEventType.LEFT_UP);
-}
+    },
 
-// Analyze satellites over region in last 24 hours
-function analyzeRegion(rectangle) {
-    updateLoadingStatus('Analyzing region...');
-    
-    const now = new Date();
-    const startTime = new Date(now.getTime() - CONFIG.REGION_ANALYSIS_HOURS * 60 * 60 * 1000);
-    const timeSteps = (CONFIG.REGION_ANALYSIS_HOURS * 60) / CONFIG.REGION_ANALYSIS_INTERVAL_MIN;
-    const stepMs = CONFIG.REGION_ANALYSIS_INTERVAL_MIN * 60 * 1000;
-    
-    const categoryCounts = new Map();
-    const passDetails = []; // For CSV: satName, category, passTime
-    
-    for (const [noradId, satData] of state.satellites) {
+    toggleDayNight() {
+        if (AppState.viewer) {
+            AppState.enableDayNight = !AppState.enableDayNight;
+            AppState.viewer.scene.globe.enableLighting = AppState.enableDayNight;
+            document.getElementById('toggleDayNightBtn').textContent = 
+                AppState.enableDayNight ? 'Day/Night' : 'Static';
+        }
+    }
+};
+
+// Satellite Data Management
+const SatelliteManager = {
+    async loadSatelliteData() {
         try {
-            const satrec = satellite.twoline2satrec(satData.TLE_LINE1, satData.TLE_LINE2);
-            if (satrec.error !== 0) continue;
+            updateLoadingStatus('Fetching satellite data...');
+            updateStatus('data', 'active', 'Fetching');
+
+            const response = await fetch(`${CONFIG.API_BASE}/api/satellites/live`, {
+                headers: SessionManager.getHeaders()
+            });
+
+            if (!response.ok) {
+                throw new Error(`Data fetch failed: ${response.status}`);
+            }
+
+            const data = await response.json();
             
-            const { category, color } = getSatelliteCategoryAndColor(satData);
-            let passed = false;
-            let passTimes = [];
-            
-            for (let i = 0; i <= timeSteps; i++) {
-                const time = new Date(startTime.getTime() + i * stepMs);
-                const positionAndVelocity = satellite.propagate(satrec, time);
+            if (!data.success) {
+                throw new Error(data.error || 'Unknown error');
+            }
+
+            console.log(`Loaded ${data.count} satellites from ${data.sources.successful} sources`);
+
+            // Process and store satellite data
+            AppState.satellites.clear();
+            data.satellites.forEach(sat => {
+                // Validate TLE data
+                if (sat.TLE_LINE1 && sat.TLE_LINE2 && sat.NORAD_CAT_ID) {
+                    try {
+                        const satrec = satellite.twoline2satrec(sat.TLE_LINE1, sat.TLE_LINE2);
+                        if (satrec.error === 0) {
+                            AppState.satellites.set(sat.NORAD_CAT_ID, {
+                                ...sat,
+                                satrec: satrec,
+                                lastCalculated: null,
+                                position: null
+                            });
+                        }
+                    } catch (e) {
+                        console.warn(`Invalid TLE for satellite ${sat.NORAD_CAT_ID}:`, e);
+                    }
+                }
+            });
+
+            AppState.lastDataUpdate = new Date();
+            updateStatus('data', 'active', 'Connected');
+            updateLastUpdateTime();
+
+            // Render satellites if Cesium is ready
+            if (AppState.viewer) {
+                this.renderSatellites();
+            }
+
+            Utils.showMessage(`Loaded ${AppState.satellites.size} satellites`, 'success');
+
+        } catch (error) {
+            console.error('Satellite data loading failed:', error);
+            updateStatus('data', 'error', 'Failed');
+            Utils.showMessage(`Failed to load satellite data: ${error.message}`, 'error');
+            AppState.errorCount++;
+        }
+    },
+
+    renderSatellites() {
+        if (!AppState.viewer || !AppState.systemReady) return;
+
+        updateLoadingStatus('Rendering satellites...');
+
+        // Clear existing entities
+        AppState.entities.forEach(entity => {
+            AppState.viewer.entities.remove(entity);
+        });
+        AppState.entities.clear();
+
+        let rendered = 0;
+        const maxRender = Math.min(AppState.satellites.size, CONFIG.MAX_SATELLITES_RENDER);
+        const currentTime = new Date();
+
+        for (const [noradId, satData] of AppState.satellites) {
+            if (rendered >= maxRender) break;
+
+            // Apply filters
+            if (!this.passesFilter(satData)) continue;
+
+            try {
+                // Calculate current position
+                const positionAndVelocity = satellite.propagate(satData.satrec, currentTime);
+                
                 if (!positionAndVelocity.position) continue;
+
+                const gmst = satellite.gstime(currentTime);
+                const position = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
                 
-                const gmst = satellite.gstime(time);
-                const geodetic = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
-                const lon = satellite.degreesLong(geodetic.longitude);
-                const lat = satellite.degreesLat(geodetic.latitude);
+                // Store calculated position
+                satData.position = {
+                    latitude: satellite.degreesLat(position.latitude),
+                    longitude: satellite.degreesLong(position.longitude),
+                    altitude: position.height
+                };
+                satData.lastCalculated = currentTime;
+
+                // Create entity
+                const entity = AppState.viewer.entities.add({
+                    id: `sat_${noradId}`,
+                    position: Cesium.Cartesian3.fromDegrees(
+                        satData.position.longitude,
+                        satData.position.latitude,
+                        satData.position.altitude * 1000 // Convert km to meters
+                    ),
+                    point: {
+                        pixelSize: this.getSatelliteSize(satData),
+                        color: this.getSatelliteColor(satData),
+                        outlineColor: Cesium.Color.WHITE,
+                        outlineWidth: 1,
+                        heightReference: Cesium.HeightReference.NONE,
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    },
+                    label: AppState.showLabels ? {
+                        text: satData.OBJECT_NAME || `NORAD ${noradId}`,
+                        font: '10pt sans-serif',
+                        pixelOffset: new Cesium.Cartesian2(0, -30),
+                        fillColor: Cesium.Color.WHITE,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 2,
+                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                        scale: 0.8,
+                        disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    } : undefined,
+                    satellite: satData // Store reference for click handling
+                });
+
+                // Add orbit path if enabled
+                if (AppState.showOrbits) {
+                    this.addOrbitPath(entity, satData);
+                }
+
+                AppState.entities.set(noradId, entity);
+                rendered++;
+
+            } catch (error) {
+                console.warn(`Failed to render satellite ${noradId}:`, error);
+            }
+        }
+
+        updateSatelliteCount(rendered);
+        updateLoadingStatus(null);
+        console.log(`Rendered ${rendered} satellites`);
+    },
+
+    getSatelliteSize(satData) {
+        // Size based on satellite type and importance
+        const name = satData.OBJECT_NAME?.toUpperCase() || '';
+        if (name.includes('STARLINK')) return 3;
+        if (name.includes('GPS') || name.includes('GALILEO') || name.includes('GLONASS')) return 5;
+        if (name.includes('ISS') || name.includes('SPACE STATION')) return 8;
+        return 4;
+    },
+
+    getSatelliteColor(satData) {
+        // Color coding based on satellite type
+        const name = satData.OBJECT_NAME?.toUpperCase() || '';
+        if (name.includes('STARLINK')) return Cesium.Color.CYAN;
+        if (name.includes('GPS') || name.includes('GALILEO') || name.includes('GLONASS')) return Cesium.Color.YELLOW;
+        if (name.includes('ISS') || name.includes('SPACE STATION')) return Cesium.Color.RED;
+        if (name.includes('WEATHER') || name.includes('NOAA')) return Cesium.Color.GREEN;
+        if (name.includes('MILITARY') || name.includes('DEFENSE')) return Cesium.Color.ORANGE;
+        return Cesium.Color.WHITE;
+    },
+
+    addOrbitPath(entity, satData) {
+        try {
+            const positions = [];
+            const startTime = new Date();
+            const timeStep = CONFIG.ORBIT_PROPAGATION_MINUTES * 60 * 1000 / CONFIG.ORBIT_SAMPLE_POINTS;
+
+            for (let i = 0; i < CONFIG.ORBIT_SAMPLE_POINTS; i++) {
+                const time = new Date(startTime.getTime() + (i * timeStep));
+                const positionAndVelocity = satellite.propagate(satData.satrec, time);
                 
-                if (lon >= rectangle.west && lon <= rectangle.east &&
-                    lat >= rectangle.south && lat <= rectangle.north) {
-                    passed = true;
-                    passTimes.push(time.toISOString());
+                if (positionAndVelocity.position) {
+                    const gmst = satellite.gstime(time);
+                    const position = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
+                    
+                    positions.push(Cesium.Cartesian3.fromDegrees(
+                        satellite.degreesLong(position.longitude),
+                        satellite.degreesLat(position.latitude),
+                        position.height * 1000
+                    ));
                 }
             }
-            
-            if (passed) {
-                const count = categoryCounts.get(category) || { count: 0, color: color.toCssColorString(), sats: [] };
-                count.count++;
-                count.sats.push(satData.OBJECT_NAME);
-                categoryCounts.set(category, count);
-                
-                passTimes.forEach(time => {
-                    passDetails.push({ satName: satData.OBJECT_NAME, category, passTime: time });
+
+            if (positions.length > 10) {
+                entity.polyline = {
+                    positions: positions,
+                    width: 1,
+                    material: entity.point.color.getValue().withAlpha(0.6),
+                    clampToGround: false
+                };
+            }
+
+        } catch (error) {
+            console.warn('Failed to generate orbit path:', error);
+        }
+    },
+
+    passesFilter(satData) {
+        const name = satData.OBJECT_NAME?.toUpperCase() || '';
+        
+        switch (AppState.currentFilter) {
+            case 'active':
+                return satData.OBJECT_TYPE !== 'DEBRIS';
+            case 'starlink':
+                return name.includes('STARLINK');
+            case 'gps':
+                return name.includes('GPS') || name.includes('GALILEO') || name.includes('GLONASS') || name.includes('BEIDOU');
+            default:
+                return true;
+        }
+    },
+
+    async selectSatellite(noradId) {
+        const satData = AppState.satellites.get(noradId);
+        if (!satData) return;
+
+        AppState.selectedSatellite = noradId;
+
+        try {
+            // Fetch detailed information
+            const response = await fetch(`${CONFIG.API_BASE}/api/satellite/${noradId}/details`, {
+                headers: SessionManager.getHeaders()
+            });
+
+            let detailInfo = {};
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    detailInfo = data.satellite;
+                }
+            }
+
+            // Update info panel
+            this.updateInfoPanel(satData, detailInfo);
+
+            // Center view on satellite
+            if (satData.position && AppState.viewer) {
+                AppState.viewer.camera.flyTo({
+                    destination: Cesium.Cartesian3.fromDegrees(
+                        satData.position.longitude,
+                        satData.position.latitude,
+                        satData.position.altitude * 1000 + 1000000 // 1000km above satellite
+                    ),
+                    duration: 2.0
                 });
             }
+
         } catch (error) {
-            console.warn(`Analysis failed for ${noradId}:`, error);
+            console.error('Failed to load satellite details:', error);
+            this.updateInfoPanel(satData);
         }
-    }
-    
-    displayRegionAnalysis(categoryCounts);
-    setupCsvExport(passDetails);
-    
-    updateLoadingStatus(null);
-}
+    },
 
-// Display region analysis results
-function displayRegionAnalysis(categoryCounts) {
-    const resultsDiv = document.getElementById('analysisResults');
-    resultsDiv.innerHTML = '';
-    
-    let total = 0;
-    const table = document.createElement('table');
-    table.style.width = '100%';
-    table.innerHTML = '<tr><th>Category</th><th>Count</th><th>Color</th></tr>';
-    
-    for (const [category, data] of categoryCounts) {
-        total += data.count;
-        const row = `<tr>
-            <td>${category}</td>
-            <td>${data.count}</td>
-            <td><div style="width:20px;height:20px;background:${data.color};border:1px solid white;"></div></td>
-        </tr>`;
-        table.innerHTML += row;
-    }
-    
-    resultsDiv.appendChild(table);
-    resultsDiv.innerHTML += `<p>Total satellites passed: ${total}</p>`;
-    
-    document.getElementById('regionAnalysis').style.display = 'block';
-}
+    updateInfoPanel(satData, detailInfo = {}) {
+        const panel = document.getElementById('satelliteInfo');
+        
+        const html = `
+            <div class="info-row">
+                <span class="info-label">Name:</span>
+                <span class="info-value">${satData.OBJECT_NAME || 'Unknown'}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">NORAD ID:</span>
+                <span class="info-value">${satData.NORAD_CAT_ID}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Owner:</span>
+                <span class="info-value">${detailInfo.COUNTRY || satData.COUNTRY || 'Unknown'}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Launch Date:</span>
+                <span class="info-value">${detailInfo.LAUNCH ? new Date(detailInfo.LAUNCH).toLocaleDateString() : 'Unknown'}</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Object Type:</span>
+                <span class="info-value">${detailInfo.OBJECT_TYPE || satData.OBJECT_TYPE || 'Unknown'}</span>
+            </div>
+            ${satData.position ? `
+            <div class="info-row">
+                <span class="info-label">Latitude:</span>
+                <span class="info-value">${Utils.formatNumber(satData.position.latitude)}°</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Longitude:</span>
+                <span class="info-value">${Utils.formatNumber(satData.position.longitude)}°</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Altitude:</span>
+                <span class="info-value">${Utils.formatNumber(satData.position.altitude)} km</span>
+            </div>
+            ` : ''}
+            <div class="info-row">
+                <span class="info-label">Epoch:</span>
+                <span class="info-value">${Utils.formatDate(satData.EPOCH)}</span>
+            </div>
+        `;
+        
+        panel.innerHTML = html;
+    },
 
-// Setup CSV export
-function setupCsvExport(passDetails) {
-    document.getElementById('exportCsvBtn').onclick = () => {
-        let csv = 'Satellite Name,Category,Pass Time\n';
-        passDetails.forEach(detail => {
-            csv += `${detail.satName},${detail.category},${detail.passTime}\n`;
+    toggleOrbits() {
+        AppState.showOrbits = !AppState.showOrbits;
+        document.getElementById('toggleOrbitsBtn').classList.toggle('active', AppState.showOrbits);
+        this.renderSatellites();
+    },
+
+    toggleLabels() {
+        AppState.showLabels = !AppState.showLabels;
+        document.getElementById('toggleLabelsBtn').classList.toggle('active', AppState.showLabels);
+        this.renderSatellites();
+    },
+
+    setFilter(filter) {
+        AppState.currentFilter = filter;
+        
+        // Update button states
+        document.querySelectorAll('[id$="Btn"]').forEach(btn => {
+            btn.classList.remove('active');
         });
+        document.getElementById(`show${filter.charAt(0).toUpperCase() + filter.slice(1)}Btn`).classList.add('active');
         
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'region_satellite_passes.csv';
-        a.click();
-        URL.revokeObjectURL(url);
-    };
-}
+        this.renderSatellites();
+    }
+};
 
-// UI Helper functions
+// Search functionality
+const SearchManager = {
+    initialize() {
+        const searchInput = document.getElementById('satelliteSearch');
+        const resultsContainer = document.getElementById('searchResults');
+
+        searchInput.addEventListener('input', Utils.debounce((e) => {
+            this.performSearch(e.target.value.trim());
+        }, CONFIG.SEARCH_DEBOUNCE_MS));
+
+        searchInput.addEventListener('focus', () => {
+            if (AppState.searchResults.length > 0) {
+                resultsContainer.style.display = 'block';
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target) && !resultsContainer.contains(e.target)) {
+                resultsContainer.style.display = 'none';
+            }
+        });
+    },
+
+    performSearch(query) {
+        const resultsContainer = document.getElementById('searchResults');
+        
+        if (query.length < 2) {
+            resultsContainer.style.display = 'none';
+            return;
+        }
+
+        AppState.searchResults = [];
+        const queryLower = query.toLowerCase();
+
+        // Search through satellites
+        for (const [noradId, satData] of AppState.satellites) {
+            const name = satData.OBJECT_NAME?.toLowerCase() || '';
+            const id = noradId.toString();
+            
+            if (name.includes(queryLower) || id.includes(queryLower)) {
+                AppState.searchResults.push({
+                    noradId: noradId,
+                    name: satData.OBJECT_NAME || `NORAD ${noradId}`,
+                    country: satData.COUNTRY || 'Unknown'
+                });
+                
+                if (AppState.searchResults.length >= 10) break; // Limit results
+            }
+        }
+
+        this.displaySearchResults();
+    },
+
+    displaySearchResults() {
+        const resultsContainer = document.getElementById('searchResults');
+        
+        if (AppState.searchResults.length === 0) {
+            resultsContainer.style.display = 'none';
+            return;
+        }
+
+        const html = AppState.searchResults.map(result => `
+            <div class="search-result" onclick="SearchManager.selectResult('${result.noradId}')">
+                <div style="font-weight: 500;">${result.name}</div>
+                <div style="font-size: 10px; color: #888;">NORAD ${result.noradId} • ${result.country}</div>
+            </div>
+        `).join('');
+
+        resultsContainer.innerHTML = html;
+        resultsContainer.style.display = 'block';
+    },
+
+    selectResult(noradId) {
+        SatelliteManager.selectSatellite(noradId);
+        document.getElementById('searchResults').style.display = 'none';
+        document.getElementById('satelliteSearch').value = '';
+    }
+};
+
+// Performance monitoring
+const PerformanceMonitor = {
+    initialize() {
+        setInterval(() => {
+            this.updateFPS();
+        }, CONFIG.PERFORMANCE_MONITOR_INTERVAL);
+    },
+
+    updateFPS() {
+        const now = performance.now();
+        AppState.frameCount++;
+        
+        if (now >= AppState.lastFrameTime + 1000) {
+            AppState.fps = Math.round((AppState.frameCount * 1000) / (now - AppState.lastFrameTime));
+            AppState.frameCount = 0;
+            AppState.lastFrameTime = now;
+            
+            document.getElementById('fpsCounter').textContent = AppState.fps;
+        }
+    }
+};
+
+// UI Helper Functions
 function updateLoadingStatus(message) {
-    const indicator = document.getElementById('loadingIndicator');
+    const overlay = document.getElementById('loadingOverlay');
+    const statusText = document.getElementById('loadingStatus');
+    
     if (message) {
-        indicator.style.display = 'flex';
-        indicator.querySelector('p').textContent = message;
+        statusText.textContent = message;
+        overlay.style.display = 'flex';
     } else {
-        indicator.style.display = 'none';
+        overlay.style.display = 'none';
     }
 }
 
-function updateInfoPanel(message) {
-    const infoPanel = document.getElementById('infoPanel');
-    infoPanel.innerHTML = `<div class="placeholder-text"><p>${message}</p></div>`;
-}
-
-function populateSearchList() {
-    const dataList = document.getElementById('satList');
-    dataList.innerHTML = '';
+function updateStatus(service, status, text) {
+    const indicator = document.getElementById(`${service}Status`);
+    const statusText = document.getElementById(`${service}StatusText`);
     
-    const fragment = document.createDocumentFragment();
-    let count = 0;
-    
-    for (const [noradId, sat] of state.satellites) {
-        if (count >= 1000) break; // Limit for performance
-        
-        const option = document.createElement('option');
-        option.value = sat.OBJECT_NAME;
-        option.setAttribute('data-norad', noradId);
-        fragment.appendChild(option);
-        count++;
+    if (indicator) {
+        indicator.className = `status-indicator ${status === 'error' ? 'status-error' : ''}`;
     }
     
-    dataList.appendChild(fragment);
+    if (statusText) {
+        statusText.textContent = text;
+    }
 }
 
-// Event handlers
-function initializeUI() {
-    // Theme toggle
-    document.getElementById('toggleThemeBtn').addEventListener('click', () => {
-        document.body.classList.toggle('light');
-        document.body.classList.toggle('dark');
-    });
-    
-    // Reset view
-    document.getElementById('resetViewBtn').addEventListener('click', () => {
-        if (state.viewer) {
-            state.viewer.trackedEntity = undefined;
-            state.viewer.camera.setView({
-                destination: Cesium.Cartesian3.fromDegrees(0, 0, 20000000),
-                orientation: {
-                    heading: 0,
-                    pitch: -Cesium.Math.PI_OVER_TWO,
-                    roll: 0
-                }
-            });
-        }
-        
-        if (state.selectedSatellite) {
-            const entity = state.entities.get(state.selectedSatellite);
-            if (entity) {
-                entity.path.show = false;
-                entity.point.pixelSize = determineSatelliteSize(entity.properties._value);
-            }
-            state.selectedSatellite = null;
-        }
-        
-        updateInfoPanel('Select a satellite to view details');
-    });
-    
-    // Panel toggle
-    document.getElementById('togglePanelBtn').addEventListener('click', () => {
-        document.getElementById('sidebar').classList.toggle('show');
-    });
-    
-    // Search functionality
-    const searchBox = document.getElementById('searchBox');
-    searchBox.addEventListener('change', (e) => {
-        const selectedName = e.target.value;
-        const option = document.querySelector(`#satList option[value="${selectedName}"]`);
-        
-        if (option) {
-            const noradId = option.getAttribute('data-norad');
-            if (noradId) {
-                selectSatellite(noradId);
-            }
-        }
-    });
-    
-    // Region analysis button
-    document.getElementById('analyzeRegionBtn').addEventListener('click', () => {
-        if (state.drawingRegion) return;
-        startRegionDrawing();
-    });
+function updateSatelliteCount(count) {
+    document.getElementById('satCount').textContent = count;
 }
 
-// Initialize application
-async function initialize() {
+function updateLastUpdateTime() {
+    if (AppState.lastDataUpdate) {
+        document.getElementById('lastUpdateText').textContent = 
+            Utils.formatDate(AppState.lastDataUpdate);
+    }
+}
+
+// Event Handlers
+function setupEventHandlers() {
+    // View controls
+    document.getElementById('resetViewBtn').addEventListener('click', CesiumManager.resetView);
+    document.getElementById('toggleOrbitsBtn').addEventListener('click', SatelliteManager.toggleOrbits);
+    document.getElementById('toggleLabelsBtn').addEventListener('click', SatelliteManager.toggleLabels);
+    document.getElementById('toggleDayNightBtn').addEventListener('click', CesiumManager.toggleDayNight);
+
+    // Filter controls
+    document.getElementById('showAllBtn').addEventListener('click', () => SatelliteManager.setFilter('all'));
+    document.getElementById('showActiveBtn').addEventListener('click', () => SatelliteManager.setFilter('active'));
+    document.getElementById('showStarlinkBtn').addEventListener('click', () => SatelliteManager.setFilter('starlink'));
+    document.getElementById('showGPSBtn').addEventListener('click', () => SatelliteManager.setFilter('gps'));
+}
+
+// Application Initialization
+async function initializeApplication() {
     try {
-        console.log('Initializing Mission Control...');
+        console.log('Starting Mission Control Enterprise...');
         
-        // Initialize UI
-        initializeUI();
-        updateLoadingStatus('Establishing secure connection...');
-        
-        // Get session
-        await initializeSession();
-        updateLoadingStatus('Initializing 3D visualization...');
+        // Initialize session management
+        await SessionManager.initialize();
         
         // Initialize Cesium
-        await initializeCesium();
-        updateLoadingStatus('Loading satellite data...');
+        await CesiumManager.initialize();
         
-        // Load satellites
-        await loadSatelliteData();
+        // Load satellite data
+        await SatelliteManager.loadSatelliteData();
         
-        // Start periodic updates for real-time data
-        setInterval(loadSatelliteData, CONFIG.UPDATE_INTERVAL);
+        // Initialize UI components
+        SearchManager.initialize();
+        PerformanceMonitor.initialize();
+        setupEventHandlers();
         
-        console.log('Mission Control ready');
-        // Enterprise notes: For microservices, split into separate services (e.g., one for Cesium proxy, one for satellite data fetching). Use Docker/Kubernetes for scaling. Advanced caching: Implement Redis for satellite data. Performance: Monitor with New Relic/Prometheus.
+        // Mark system as ready
+        AppState.systemReady = true;
+        AppState.connectionStatus = 'connected';
+        
+        // Setup auto-refresh
+        setInterval(() => {
+            if (AppState.systemReady) {
+                SatelliteManager.loadSatelliteData();
+            }
+        }, CONFIG.UPDATE_INTERVAL);
+        
+        console.log('Mission Control Enterprise initialized successfully');
+        Utils.showMessage('Mission Control Enterprise ready', 'success');
         
     } catch (error) {
-        console.error('Initialization failed:', error);
-        updateLoadingStatus('Initialization failed. Please refresh.');
+        console.error('Application initialization failed:', error);
+        Utils.showMessage(`Initialization failed: ${error.message}`, 'error');
+        updateLoadingStatus(`Error: ${error.message}`);
     }
 }
 
-// Start when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initialize);
-} else {
-    initialize();
+// Start the application
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM loaded, initializing application...');
+    initializeApplication();
+});
+
+// Handle page visibility changes for performance
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        // Pause updates when tab is not visible
+        console.log('Tab hidden, pausing updates');
+    } else {
+        // Resume updates when tab becomes visible
+        console.log('Tab visible, resuming updates');
+        if (AppState.systemReady) {
+            SatelliteManager.renderSatellites();
+        }
+    }
+});
+
+// Handle errors globally
+window.addEventListener('error', (event) => {
+    console.error('Global error:', event.error);
+    AppState.errorCount++;
+    Utils.showMessage('System error occurred', 'error');
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+    console.error('Unhandled promise rejection:', event.reason);
+    AppState.errorCount++;
+    Utils.showMessage('Network error occurred', 'error');
+});
+
+// Export for debugging (development only)
+if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    window.MissionControl = {
+        AppState,
+        Utils,
+        SessionManager,
+        CesiumManager,
+        SatelliteManager,
+        SearchManager
+    };
 }

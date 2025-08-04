@@ -18,11 +18,14 @@ const rateLimit = require('express-rate-limit');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// CRITICAL: Validate environment
-if (!process.env.CESIUM_ION_TOKEN) {
-    console.error('FATAL: CESIUM_ION_TOKEN not configured');
-    console.error('Please set CESIUM_ION_TOKEN in your environment variables');
-    process.exit(1);
+// CRITICAL: Validate environment with better handling
+const cesiumToken = process.env.CESIUM_ION_TOKEN;
+if (!cesiumToken || cesiumToken === 'your_cesium_ion_token_here') {
+    console.warn('WARNING: CESIUM_ION_TOKEN not properly configured');
+    console.warn('Set your actual Cesium Ion token in environment variables');
+    console.warn('The application will run but Cesium features may not work properly');
+} else {
+    console.log('✓ Cesium Ion token configured');
 }
 
 // Security middleware
@@ -134,6 +137,14 @@ app.get('/api/cesium-proxy/*', validateSession, async (req, res) => {
         const assetPath = req.params[0];
         const queryString = req.url.split('?')[1] || '';
         
+        // Check if token is available
+        if (!cesiumToken || cesiumToken === 'your_cesium_ion_token_here') {
+            return res.status(503).json({ 
+                error: 'Cesium Ion service not configured',
+                details: 'CESIUM_ION_TOKEN environment variable not set properly'
+            });
+        }
+        
         // Construct proper Cesium URL based on asset type
         let cesiumUrl;
         
@@ -153,7 +164,7 @@ app.get('/api/cesium-proxy/*', validateSession, async (req, res) => {
         // Fetch from Cesium with proper headers
         const response = await fetch(cesiumUrl, {
             headers: {
-                'Authorization': `Bearer ${process.env.CESIUM_ION_TOKEN}`,
+                'Authorization': `Bearer ${cesiumToken}`,
                 'Accept': req.headers.accept || '*/*',
                 'Accept-Encoding': 'gzip, deflate, br',
                 'User-Agent': 'Mission-Control-Enterprise/2.0'
@@ -428,12 +439,16 @@ app.get('/api/health', (req, res) => {
             total: Math.round(memUsage.heapTotal / 1024 / 1024)
         },
         services: {
-            cesiumProxy: 'active',
+            cesiumProxy: cesiumToken && cesiumToken !== 'your_cesium_ion_token_here' ? 'active' : 'not_configured',
             satelliteData: 'active',
             sessionManager: 'active'
         },
         sessions: {
             active: sessions.size
+        },
+        environment: {
+            cesiumTokenConfigured: !!(cesiumToken && cesiumToken !== 'your_cesium_ion_token_here'),
+            nodeEnv: process.env.NODE_ENV || 'development'
         }
     });
 });
@@ -484,15 +499,21 @@ process.on('SIGINT', () => {
 app.listen(port, () => {
     console.log(`Mission Control Backend v2.0 operational on port ${port}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`Cesium proxy: Secured with session management`);
+    console.log(`Cesium proxy: ${cesiumToken && cesiumToken !== 'your_cesium_ion_token_here' ? 'Configured' : 'Not configured'}`);
     console.log(`Memory limit: ${process.env.NODE_OPTIONS || 'default'}`);
     
     // Display configuration
     console.log('\n=== SECURITY STATUS ===');
-    console.log(`✓ Cesium Ion token: ${process.env.CESIUM_ION_TOKEN ? 'Configured' : 'MISSING'}`);
+    console.log(`✓ Cesium Ion token: ${cesiumToken && cesiumToken !== 'your_cesium_ion_token_here' ? 'Configured' : 'MISSING'}`);
     console.log(`✓ Rate limiting: Active`);
     console.log(`✓ Session management: Active`);
     console.log(`✓ CORS protection: Active`);
     console.log(`✓ Security headers: Active`);
     console.log('========================\n');
+    
+    if (!cesiumToken || cesiumToken === 'your_cesium_ion_token_here') {
+        console.log('⚠️  WARNING: Cesium Ion features will be limited without proper token configuration');
+        console.log('   Please set CESIUM_ION_TOKEN environment variable with your actual token');
+        console.log('   Visit: https://cesium.com/ion/tokens to get your token\n');
+    }
 });

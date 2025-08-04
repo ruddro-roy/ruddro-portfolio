@@ -1,359 +1,196 @@
-# Mission Control Enterprise
+# Orbital Guard
 
-## Real-time Satellite Tracking System with Secure 3D Earth Visualization
+## Live Satellite Tracking and Threat Analysis Platform
 
-A sophisticated enterprise-grade application for real-time satellite tracking featuring secure Cesium Ion integration, comprehensive satellite data from Celestrak, and high-performance 3D Earth visualization.
+A cloud-native platform for real-time satellite tracking, orbital analysis, and space situational awareness. Built to advance our understanding of orbital dynamics and improve space traffic management through precise tracking and predictive analytics.
 
-## Features
+## Mission
 
-### Core Capabilities
-- **Real-time 3D Earth Visualization**: High-resolution satellite imagery and terrain using Cesium Ion
-- **Live Satellite Tracking**: Real-time data for 8,000+ satellites from multiple Celestrak sources
-- **Enterprise Security**: Secure token management with session-based proxy architecture
-- **Advanced Search**: Fast satellite search by name, NORAD ID, or country
-- **Orbital Mechanics**: Precise SGP4 propagation for orbital calculations
-- **Performance Optimization**: Efficient rendering for thousands of satellites
-- **Multiple Data Sources**: Comprehensive satellite coverage including:
-  - Active satellites, Space stations, Weather satellites
-  - GPS/GNSS constellations (GPS, Galileo, GLONASS, BeiDou)
-  - Communication satellites (Starlink, Intelsat)
-  - Scientific and military satellites
-  - CubeSats and amateur radio satellites
+Orbital Guard aims to democratize access to satellite tracking technology, providing researchers, space enthusiasts, and organizations with real-time insights into orbital activities. By combining advanced orbital mechanics with modern cloud infrastructure, we're building the foundation for improved space traffic management and collision avoidance systems.
 
-### Security Features
-- Session-based authentication for Cesium Ion access
-- Token isolation (never exposed to frontend)
-- Rate limiting and DDoS protection
-- Secure CORS configuration
-- Advanced security headers
-- IP-based session validation
+## Core Capabilities
+
+### Real-time Satellite Tracking
+- **Live Position Data**: Track 8,000+ satellites with SGP4 orbital propagation
+- **Multi-Source Integration**: Celestrak TLE data, NORAD tracking, and custom orbital elements
+- **Precision Analytics**: Sub-kilometer accuracy for critical orbital calculations
+- **Predictive Modeling**: Regional pass predictions and conjunction analysis
+
+### Advanced Visualization
+- **3D Earth Rendering**: High-resolution CesiumJS visualization with real-time updates
+- **Orbital Paths**: Dynamic trajectory visualization with customizable time windows
+- **Interactive Controls**: Zoom, pan, and time-based navigation
+- **Performance Optimized**: Smooth 60 FPS rendering for thousands of satellites
+
+### Threat Analysis & Monitoring
+- **Conjunction Detection**: Automated identification of potential satellite collisions
+- **Risk Assessment**: Probability calculations for close approaches
+- **Alert System**: Real-time notifications for critical events
+- **Historical Analysis**: Long-term orbital evolution tracking
+
+### Security & Access Control
+- **Role-based Access**: User management with granular permissions
+- **Secure Authentication**: JWT-based session management
+- **API Protection**: Rate limiting and IP-based access controls
+- **Data Integrity**: Encrypted communications and secure token handling
 
 ## Architecture
 
-### Backend (Node.js/Express)
-- **Secure Proxy**: Routes Cesium Ion requests securely
-- **Session Management**: Handles secure token distribution
-- **Data Processing**: Real-time satellite data aggregation
-- **API Gateway**: RESTful endpoints for satellite information
+### Backend Services
+- **Node.js API**: TypeScript/Express for core application logic
+- **Python Microservice**: Flask-based orbital mechanics engine
+- **MongoDB Atlas**: Cloud-hosted data persistence
+- **Redis Cloud**: High-performance caching layer
 
-### Frontend (Vanilla JS/Cesium)
-- **3D Visualization**: Cesium-powered Earth rendering
-- **Real-time Updates**: Live satellite position calculations
-- **Interactive UI**: Modern enterprise interface
-- **Performance Monitoring**: FPS and system status tracking
+### Frontend Application
+- **React Framework**: Modern component-based architecture
+- **CesiumJS Integration**: Advanced 3D visualization
+- **Real-time Updates**: WebSocket connections for live data
+- **Responsive Design**: Mobile and desktop optimized
 
-## Prerequisites
+### Cloud Infrastructure
+- **Containerized Deployment**: Docker-based microservices
+- **Auto-scaling**: Cloud-native resource management
+- **CI/CD Pipeline**: Automated testing and deployment
+- **Monitoring**: Comprehensive logging and health checks
 
-- Node.js 18.0.0 or higher
-- npm 8.0.0 or higher
-- Cesium Ion account and access token
-- Render.com account (for deployment)
+## Technology Stack
 
-## Installation & Setup
+### Backend
+- **Runtime**: Node.js 18+ with TypeScript
+- **Framework**: Express.js with middleware optimization
+- **Database**: MongoDB Atlas with aggregation pipelines
+- **Cache**: Redis Cloud for session and data caching
+- **Authentication**: JWT with refresh token rotation
 
-### 1. Clone and Install Dependencies
+### Orbital Engine
+- **Language**: Python 3.11+
+- **Framework**: Flask with async support
+- **Libraries**: Skyfield, SGP4, NumPy for orbital calculations
+- **Integration**: RESTful API with JSON responses
 
+### Frontend
+- **Framework**: React 18 with hooks and context
+- **3D Engine**: CesiumJS for Earth visualization
+- **Styling**: Tailwind CSS with custom components
+- **State Management**: React Query for server state
+
+### Infrastructure
+- **Deployment**: Docker Compose with cloud optimization
+- **CI/CD**: GitHub Actions with automated testing
+- **Monitoring**: Application performance monitoring
+- **Security**: Automated vulnerability scanning
+
+## Getting Started
+
+### Prerequisites
+- Node.js 18.0.0+
+- Python 3.11+
+- Docker and Docker Compose
+- Cesium Ion account (free tier available)
+
+### Quick Start
 ```bash
 # Clone the repository
-git clone <your-repository-url>
-cd mission-control-enterprise
+git clone https://github.com/your-username/orbital-guard.git
+cd orbital-guard
 
-# Install backend dependencies
-cd ruddro-backend
-npm install
+# Set up environment variables
+cp .env.example .env
+# Edit .env with your configuration
 
-# Verify installation
-npm run health
+# Start the application
+docker-compose up --build
 ```
 
-### 2. Cesium Ion Configuration
-
-1. **Create Cesium Ion Account**:
-   - Visit [https://cesium.com/ion/](https://cesium.com/ion/)
-   - Sign up for a free account
-   - Navigate to Access Tokens section
-
-2. **Generate Access Token**:
-   - Create a new token with the following scopes:
-     - `assets:read` (Required for imagery and terrain)
-     - `assets:list` (Optional for asset browsing)
-   - Copy the generated token
-
-3. **Configure Environment Variables**:
-
-#### For Local Development:
-Create `.env` file in `ruddro-backend/`:
+### Environment Configuration
 ```env
-CESIUM_ION_TOKEN=your_cesium_ion_token_here
-NODE_ENV=development
+# Core Application
+NODE_ENV=production
 PORT=3000
-ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+JWT_SECRET=your-secure-jwt-secret
+
+# Database
+MONGODB_URI=your-mongodb-atlas-connection
+REDIS_URL=your-redis-cloud-connection
+
+# Cesium Integration
+CESIUM_ION_TOKEN=your-cesium-ion-access-token
+
+# Security
+RATE_LIMIT_WINDOW=900000
+RATE_LIMIT_MAX_REQUESTS=100
 ```
 
-#### For Render.com Deployment:
-1. Go to your Render.com dashboard
-2. Navigate to your service settings
-3. Add environment variable:
-   - **Key**: `CESIUM_ION_TOKEN`
-   - **Value**: Your Cesium Ion token
-   - **Important**: Do NOT put this in the "Secret Files" section
+## API Documentation
 
-### 3. File Structure Setup
-
-Ensure your project structure matches:
-```
-project-root/
-├── ruddro-backend/
-│   ├── public/
-│   │   ├── index.html          ← Replace with new version
-│   │   ├── app.js              ← Replace with new version
-│   │   └── favicon_io/         ← Keep existing favicons
-│   ├── server.js               ← Replace with new version
-│   ├── package.json            ← Replace with new version
-│   └── README.md               ← This file
-└── ruddro-future/              ← Keep existing (optional)
-```
-
-### 4. Replace Existing Files
-
-**IMPORTANT**: Replace the following files entirely with the new versions:
-
-1. **Replace `ruddro-backend/public/index.html`**:
-   - Delete the existing file
-   - Create new file with the enterprise HTML provided
-
-2. **Replace `ruddro-backend/public/app.js`**:
-   - Delete the existing file
-   - Create new file with the enterprise JavaScript provided
-
-3. **Replace `ruddro-backend/server.js`**:
-   - Delete the existing file
-   - Create new file with the secure backend provided
-
-4. **Replace `ruddro-backend/package.json`**:
-   - Delete the existing file
-   - Create new file with updated dependencies
-
-### 5. Install New Dependencies
-
-```bash
-cd ruddro-backend
-npm install
-```
-
-This will install the new security dependencies:
-- `helmet` - Security headers
-- `express-rate-limit` - Rate limiting
-
-## Running the Application
-
-### Development Mode
-```bash
-cd ruddro-backend
-npm run dev
-```
-
-### Production Mode
-```bash
-cd ruddro-backend
-npm run production
-```
-
-### Health Check
-```bash
-npm run health
-```
-
-The application will be available at:
-- Local: `http://localhost:3000`
-- Network: `http://your-ip:3000`
-
-## Deployment to Render.com
-
-### 1. Update Render Configuration
-
-1. **Service Settings**:
-   - Build Command: `cd ruddro-backend && npm install`
-   - Start Command: `cd ruddro-backend && npm start`
-   - Root Directory: Leave empty (or set to repository root)
-
-2. **Environment Variables** (in Render dashboard):
-   ```
-   CESIUM_ION_TOKEN=your_cesium_ion_token_here
-   NODE_ENV=production
-   PORT=10000
-   ALLOWED_ORIGINS=https://your-domain.onrender.com
-   ```
-
-3. **Auto-Deploy**:
-   - Connect your GitHub repository
-   - Enable auto-deploy from main branch
-
-### 2. Verify Deployment
-
-After deployment, check:
-1. Health endpoint: `https://your-domain.onrender.com/api/health`
-2. Session endpoint: `https://your-domain.onrender.com/api/session`
-3. Main application: `https://your-domain.onrender.com`
-
-## API Endpoints
-
-### Session Management
-- `GET /api/session` - Create secure session
-- Headers: Returns session ID for proxy access
+### Authentication Endpoints
+- `POST /api/auth/login` - User authentication
+- `POST /api/auth/refresh` - Token refresh
+- `POST /api/auth/logout` - Session termination
 
 ### Satellite Data
-- `GET /api/satellites/live` - Real-time satellite data
-- `GET /api/satellite/:noradId/details` - Detailed satellite info
-- `GET /api/satellite/:noradId/position` - Current position
+- `GET /api/satellites` - List all tracked satellites
+- `GET /api/satellites/:noradId` - Satellite details
+- `GET /api/satellites/:noradId/position` - Current position
+- `GET /api/satellites/:noradId/passes` - Upcoming passes
 
-### Cesium Proxy
-- `GET /api/cesium-proxy/*` - Secure Cesium Ion proxy
-- Headers: Requires `X-Session-ID`
+### Orbital Analysis
+- `POST /api/orbital/conjunction` - Conjunction analysis
+- `GET /api/orbital/predictions` - Regional predictions
+- `POST /api/orbital/propagation` - Custom propagation
 
-### System
-- `GET /api/health` - System health status
+### User Management
+- `GET /api/users/profile` - User profile
+- `PUT /api/users/profile` - Update profile
+- `GET /api/users/permissions` - User permissions
 
-## Features Guide
+## Deployment
 
-### Real-time Satellite Tracking
-- **Data Sources**: 20+ Celestrak satellite groups
-- **Update Frequency**: 30-second intervals
-- **Coverage**: 8,000+ satellites worldwide
-- **Accuracy**: SGP4 orbital propagation
-
-### 3D Earth Visualization
-- **Imagery**: High-resolution Bing Maps via Cesium Ion
-- **Terrain**: Cesium World Terrain
-- **Lighting**: Dynamic day/night cycles
-- **Performance**: Optimized for 60 FPS rendering
-
-### Search & Filtering
-- **Search**: By satellite name or NORAD ID
-- **Filters**: All, Active, Starlink, GPS/GNSS
-- **Real-time**: Instant search results
-- **Autocomplete**: Live suggestions
-
-### Security Features
-- **Token Security**: Never exposed to client
-- **Session Management**: Secure proxy authentication
-- **Rate Limiting**: Per-IP request limits
-- **CORS Protection**: Configurable origins
-- **Security Headers**: CSP, HSTS, etc.
-
-## Performance Optimization
-
-### Client-side
-- **Rendering**: WebGL optimization
-- **Memory**: Efficient entity management
-- **Updates**: Selective re-rendering
-- **Throttling**: FPS monitoring
-
-### Server-side
-- **Caching**: Session and response caching
-- **Compression**: Gzip response compression
-- **Rate Limiting**: Request throttling
-- **Parallel Processing**: Concurrent data fetching
-
-## Troubleshooting
-
-### Common Issues
-
-1. **"Session initialization failed"**:
-   - Check `CESIUM_ION_TOKEN` environment variable
-   - Verify token has correct permissions
-   - Check network connectivity
-
-2. **"Failed to load satellite data"**:
-   - Verify Celestrak API availability
-   - Check rate limiting settings
-   - Review server logs
-
-3. **3D Earth not loading**:
-   - Confirm Cesium Ion token permissions
-   - Check browser WebGL support
-   - Verify proxy configuration
-
-4. **Performance issues**:
-   - Reduce `MAX_SATELLITES_RENDER` in config
-   - Disable orbit paths for better performance
-   - Check browser performance tab
-
-### Debug Mode
-
-For development debugging:
-```javascript
-// Available in browser console
-window.MissionControl.AppState
-window.MissionControl.SatelliteManager
-```
-
-### Logs
-
-Check server logs for detailed error information:
+### Cloud Deployment
 ```bash
-# In production
-pm2 logs mission-control
+# Deploy to cloud platform
+docker-compose -f docker-compose.prod.yml up -d
 
-# In development
-npm run dev
+# Monitor deployment
+docker-compose logs -f
 ```
-
-## Configuration
 
 ### Environment Variables
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `CESIUM_ION_TOKEN` | Yes | - | Cesium Ion access token |
-| `NODE_ENV` | No | development | Environment mode |
-| `PORT` | No | 3000 | Server port |
-| `ALLOWED_ORIGINS` | No | * | CORS allowed origins |
-
-### Application Settings
-
-Key configuration options in `app.js`:
-- `MAX_SATELLITES_RENDER`: Maximum satellites to display (default: 8000)
-- `UPDATE_INTERVAL`: Data refresh interval (default: 30000ms)
-- `ORBIT_PROPAGATION_MINUTES`: Orbit calculation duration (default: 120)
+Configure the following for production:
+- Database connection strings
+- JWT secrets and encryption keys
+- Cesium Ion access tokens
+- Rate limiting and security parameters
 
 ## Contributing
 
-### Development Setup
-1. Fork the repository
-2. Create feature branch
-3. Follow existing code style
-4. Add tests for new features
-5. Submit pull request
+We welcome contributions from the space community. Please see our contributing guidelines for:
+- Code standards and review process
+- Testing requirements
+- Documentation updates
+- Security considerations
 
-### Code Standards
-- ESLint configuration for JavaScript
-- Security-first development
-- Performance optimization
-- Comprehensive error handling
+## Future Impact
+
+This platform represents a step toward improved space situational awareness and traffic management. By providing accessible, accurate satellite tracking capabilities, we're contributing to:
+
+- **Space Safety**: Enhanced collision avoidance through better tracking
+- **Research Access**: Democratized orbital data for academic and commercial use
+- **Infrastructure Development**: Foundation for future space traffic management systems
+- **Educational Outreach**: Making space technology accessible to students and enthusiasts
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT License - See LICENSE file for details.
 
 ## Support
 
-For issues and support:
-1. Check troubleshooting section
-2. Review server logs
-3. Open GitHub issue with details
-4. Include system information and error logs
-
-## Security Notice
-
-This application handles sensitive satellite tracking data. Ensure:
-- Keep Cesium Ion tokens secure
-- Use HTTPS in production
-- Regularly update dependencies
-- Monitor for security vulnerabilities
-- Configure proper CORS policies
+For technical support and feature requests:
+- GitHub Issues: [Repository Issues](https://github.com/your-username/orbital-guard/issues)
+- Documentation: [Project Wiki](https://github.com/your-username/orbital-guard/wiki)
+- Community: [Discussions](https://github.com/your-username/orbital-guard/discussions)
 
 ---
 
-**Enterprise-Grade Mission Control System**  
-Built with security, performance, and reliability in mind.
+**Advancing Space Technology Through Open Innovation**

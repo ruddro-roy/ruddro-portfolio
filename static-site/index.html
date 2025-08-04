@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ruddro - Space Technology & Innovation</title>
+    <meta name="description" content="Space technology enthusiast and developer building the future of orbital tracking and space situational awareness.">
+    <meta name="keywords" content="space, satellite, orbital, technology, innovation, developer">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="Ruddro - Space Technology & Innovation">
+    <meta property="og:description" content="Building advanced satellite tracking and space situational awareness platforms.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://ruddro.com">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #111111;
+            --bg-tertiary: #1a1a1a;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --text-accent: #00d4ff;
+            --border-color: #333333;
+            --gradient-primary: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+            --gradient-secondary: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%);
+            --shadow-glow: 0 0 20px rgba(0, 212, 255, 0.3);
+            --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(10, 10, 10, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-color);
+            z-index: 1000;
+            padding: 1rem 0;
+        }
+
+        .nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .nav-tab {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .nav-tab:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .nav-tab.active {
+            color: var(--text-accent);
+            background: rgba(0, 212, 255, 0.1);
+        }
+
+        .nav-tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 20px;
+            height: 2px;
+            background: var(--gradient-primary);
+            border-radius: 1px;
+        }
+
+        /* Main Content */
+        .main {
+            margin-top: 80px;
+            min-height: calc(100vh - 80px);
+        }
+
+        .content-section {
+            display: none;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        .content-section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Hero Section */
+        .hero {
+            text-align: center;
+            padding: 4rem 0;
+            background: var(--gradient-secondary);
+            border-radius: 20px;
+            margin: 2rem 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at 50% 50%, rgba(0, 212, 255, 0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto 2rem;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 0.75rem 2rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: var(--gradient-primary);
+            color: white;
+            box-shadow: var(--shadow-glow);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 30px rgba(0, 212, 255, 0.5);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--text-accent);
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            margin: 1rem 0;
+            box-shadow: var(--shadow-card);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.7);
+            border-color: var(--text-accent);
+        }
+
+        .card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--text-accent);
+        }
+
+        /* Grid Layout */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+
+        /* Project Card */
+        .project-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .project-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-card);
+            border-color: var(--text-accent);
+        }
+
+        .project-image {
+            width: 100%;
+            height: 200px;
+            background: var(--gradient-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            color: var(--text-accent);
+        }
+
+        .project-content {
+            padding: 1.5rem;
+        }
+
+        .project-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+        }
+
+        .project-description {
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+            line-height: 1.6;
+        }
+
+        .project-link {
+            color: var(--text-accent);
+            text-decoration: none;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .project-link:hover {
+            text-decoration: underline;
+        }
+
+        /* Contact Form */
+        .contact-form {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--text-accent);
+            box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.2);
+        }
+
+        .form-textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        /* Bio Section */
+        .bio-content {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .bio-text {
+            font-size: 1.1rem;
+            line-height: 1.8;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+        }
+
+        .skills-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+
+        .skill-item {
+            background: var(--bg-tertiary);
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+        }
+
+        .skill-item:hover {
+            border-color: var(--text-accent);
+            transform: translateY(-2px);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .nav-tabs {
+                gap: 1rem;
+            }
+
+            .nav-tab {
+                font-size: 0.8rem;
+                padding: 0.4rem 0.8rem;
+            }
+
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+
+            .hero p {
+                font-size: 1rem;
+            }
+
+            .hero-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 0 15px;
+            }
+
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            .card {
+                padding: 1.5rem;
+            }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-accent);
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <nav class="nav container">
+            <div class="logo">Ruddro</div>
+            <div class="nav-tabs">
+                <button class="nav-tab active" data-tab="about">About</button>
+                <button class="nav-tab" data-tab="projects">Projects</button>
+                <button class="nav-tab" data-tab="bio">Bio</button>
+                <button class="nav-tab" data-tab="contact">Contact</button>
+            </div>
+        </nav>
+    </header>
+
+    <main class="main">
+        <div class="container">
+            <!-- About Section -->
+            <section id="about" class="content-section active">
+                <div class="hero">
+                    <h1>Space Technology & Innovation</h1>
+                    <p>Building the future of orbital tracking and space situational awareness. Advancing our understanding of orbital dynamics through precise satellite tracking and predictive analytics.</p>
+                    <div class="hero-buttons">
+                        <a href="#projects" class="btn btn-primary" onclick="showTab('projects')">View Projects</a>
+                        <a href="https://starlink.ruddro.com" target="_blank" class="btn btn-secondary">Live Tracking</a>
+                    </div>
+                </div>
+
+                <div class="grid">
+                    <div class="card">
+                        <h3>Orbital Guard</h3>
+                        <p>Advanced satellite tracking and threat analysis platform with real-time 3D visualization, conjunction detection, and predictive orbital modeling.</p>
+                    </div>
+                    <div class="card">
+                        <h3>Space Situational Awareness</h3>
+                        <p>Democratizing access to satellite tracking technology for researchers, space enthusiasts, and organizations worldwide.</p>
+                    </div>
+                    <div class="card">
+                        <h3>Cloud-Native Architecture</h3>
+                        <p>Built with modern cloud infrastructure, containerized microservices, and advanced security features for reliable orbital monitoring.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Projects Section -->
+            <section id="projects" class="content-section">
+                <h2 style="font-size: 2.5rem; margin-bottom: 2rem; text-align: center; background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Featured Projects</h2>
+                
+                <div class="grid">
+                    <div class="project-card">
+                        <div class="project-image">🛰️</div>
+                        <div class="project-content">
+                            <h3 class="project-title">Orbital Guard Platform</h3>
+                            <p class="project-description">Live satellite tracking and threat analysis platform with real-time 3D visualization using CesiumJS. Features conjunction detection, pass predictions, and advanced orbital mechanics.</p>
+                            <a href="https://starlink.ruddro.com" target="_blank" class="project-link">
+                                View Live Demo →
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="project-card">
+                        <div class="project-image">🌍</div>
+                        <div class="project-content">
+                            <h3 class="project-title">Real-time Satellite Tracking</h3>
+                            <p class="project-description">Track 8,000+ satellites with SGP4 orbital propagation, multi-source TLE data integration, and sub-kilometer accuracy for critical orbital calculations.</p>
+                            <a href="https://starlink.ruddro.com" target="_blank" class="project-link">
+                                Explore Tracking →
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="project-card">
+                        <div class="project-image">🔬</div>
+                        <div class="project-content">
+                            <h3 class="project-title">Orbital Analysis Engine</h3>
+                            <p class="project-description">Python-based orbital mechanics engine with Skyfield/SGP4 integration for precise satellite position calculations and conjunction analysis.</p>
+                            <a href="https://github.com/your-username/orbital-guard" target="_blank" class="project-link">
+                                View Source →
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Bio Section -->
+            <section id="bio" class="content-section">
+                <div class="bio-content">
+                    <h2 style="font-size: 2.5rem; margin-bottom: 2rem; text-align: center; background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">About Me</h2>
+                    
+                    <div class="card">
+                        <p class="bio-text">
+                            I'm passionate about space technology and orbital mechanics, building advanced systems that democratize access to satellite tracking capabilities. My work focuses on creating robust, cloud-native platforms that advance our understanding of orbital dynamics and improve space traffic management.
+                        </p>
+                        <p class="bio-text">
+                            Through projects like Orbital Guard, I'm contributing to the foundation of improved space situational awareness and collision avoidance systems. The goal is to make space technology accessible to researchers, enthusiasts, and organizations worldwide.
+                        </p>
+                    </div>
+
+                    <h3 style="font-size: 1.5rem; margin: 2rem 0 1rem; color: var(--text-accent);">Technical Expertise</h3>
+                    <div class="skills-grid">
+                        <div class="skill-item">TypeScript/Node.js</div>
+                        <div class="skill-item">Python/Flask</div>
+                        <div class="skill-item">React/CesiumJS</div>
+                        <div class="skill-item">MongoDB/Redis</div>
+                        <div class="skill-item">Docker/Kubernetes</div>
+                        <div class="skill-item">Orbital Mechanics</div>
+                        <div class="skill-item">SGP4/Skyfield</div>
+                        <div class="skill-item">Cloud Architecture</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Contact Section -->
+            <section id="contact" class="content-section">
+                <h2 style="font-size: 2.5rem; margin-bottom: 2rem; text-align: center; background: var(--gradient-primary); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Get In Touch</h2>
+                
+                <div class="contact-form">
+                    <div class="card">
+                        <form id="contactForm">
+                            <div class="form-group">
+                                <label for="name" class="form-label">Name</label>
+                                <input type="text" id="name" name="name" class="form-input" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="email" class="form-label">Email</label>
+                                <input type="email" id="email" name="email" class="form-input" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="subject" class="form-label">Subject</label>
+                                <input type="text" id="subject" name="subject" class="form-input" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="message" class="form-label">Message</label>
+                                <textarea id="message" name="message" class="form-input form-textarea" required></textarea>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary">Send Message</button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script>
+        // Tab switching functionality
+        function showTab(tabName) {
+            // Hide all content sections
+            const sections = document.querySelectorAll('.content-section');
+            sections.forEach(section => {
+                section.classList.remove('active');
+            });
+
+            // Remove active class from all tabs
+            const tabs = document.querySelectorAll('.nav-tab');
+            tabs.forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show selected section and activate tab
+            document.getElementById(tabName).classList.add('active');
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+        }
+
+        // Add click event listeners to tabs
+        document.querySelectorAll('.nav-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.getAttribute('data-tab');
+                showTab(tabName);
+            });
+        });
+
+        // Contact form handling
+        document.getElementById('contactForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Get form data
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData);
+            
+            // Here you would typically send the data to your backend
+            // For now, we'll just show a success message
+            alert('Thank you for your message! I\'ll get back to you soon.');
+            this.reset();
+        });
+
+        // Smooth scrolling for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth'
+                    });
+                }
+            });
+        });
+
+        // Add some interactive effects
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add hover effects to cards
+            const cards = document.querySelectorAll('.card, .project-card');
+            cards.forEach(card => {
+                card.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-4px)';
+                });
+                
+                card.addEventListener('mouseleave', function() {
+                    this.style.transform = 'translateY(0)';
+                });
+            });
+        });
+    </script>
+</body>
+</html>

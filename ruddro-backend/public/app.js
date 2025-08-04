@@ -1,7 +1,7 @@
 /**
  * Mission Control - Enterprise Grade Satellite Tracking
  * Secure implementation with real-time data processing
- * Enhanced for precise Cesium Ion integration without token exposure.
+ * Enhanced for precise Cesium Ion integration without token exposure, super realistic imagery, and region analysis.
  */
 
 // Configuration
@@ -10,7 +10,9 @@ const CONFIG = {
     UPDATE_INTERVAL: 30000, // 30 seconds
     MAX_SATELLITES: 5000,
     ORBIT_PROPAGATION_MINUTES: 90,
-    ORBIT_SAMPLE_POINTS: 120
+    ORBIT_SAMPLE_POINTS: 120,
+    REGION_ANALYSIS_INTERVAL_MIN: 5, // Sample every 5 minutes for 24h analysis
+    REGION_ANALYSIS_HOURS: 24
 };
 
 // State management
@@ -21,7 +23,11 @@ const state = {
     viewer: null,
     entities: new Map(),
     lastUpdate: null,
-    cesiumReady: false
+    cesiumReady: false,
+    drawingRegion: false,
+    regionEntity: null,
+    regionPositions: [],
+    startPosition: null
 };
 
 // Session management for secure Cesium access
@@ -76,14 +82,14 @@ async function initializeCesium() {
             return resource;
         };
         
-        // Initialize viewer with enterprise configuration (using correct proxy URLs for real-time 3D Earth)
+        // Initialize viewer with enterprise configuration (using Sentinel-2 for super realistic imagery)
         state.viewer = new Cesium.Viewer('cesiumContainer', {
             imageryProvider: new Cesium.UrlTemplateImageryProvider({
-                url: `${CONFIG.API_BASE}/api/cesium-assets/2/{z}/{x}/{y}.jpg`  // Correct URL for Natural Earth II imagery (asset ID 2)
+                url: `${CONFIG.API_BASE}/api/cesium-assets/3954/{z}/{x}/{y}.png`  // Sentinel-2 asset ID 3954 for realistic global imagery
             }),
             
             terrainProvider: new Cesium.CesiumTerrainProvider({
-                url: `${CONFIG.API_BASE}/api/cesium-assets/1`  // Correct URL for Cesium World Terrain (asset ID 1)
+                url: `${CONFIG.API_BASE}/api/cesium-assets/1`  // Cesium World Terrain asset ID 1
             }),
             
             skyBox: false, // Disable for performance
@@ -283,44 +289,49 @@ function calculateOrbitPath(satrec) {
     }
 }
 
-// Determine satellite color based on type/operator (visualization only; info uses full public data)
-function determineSatelliteColor(satData) {
+// Determine satellite color and category
+function getSatelliteCategoryAndColor(satData) {
     const name = satData.OBJECT_NAME.toUpperCase();
     const owner = (satData.OWNER || '').toUpperCase();
+    let category = 'Other';
+    let color = Cesium.Color.GRAY;
     
-    // Space stations
     if (name.includes('ISS') || name.includes('TIANGONG')) {
-        return Cesium.Color.WHITE;
+        category = 'Space Station';
+        color = Cesium.Color.WHITE;
+    } else if (name.includes('GPS') || name.includes('GLONASS') || name.includes('GALILEO') || name.includes('BEIDOU')) {
+        category = 'Navigation';
+        color = Cesium.Color.LIME;
+    } else if (name.includes('STARLINK') || name.includes('ONEWEB')) {
+        category = 'Communication';
+        color = Cesium.Color.CYAN;
+    } else if (name.includes('GOES') || name.includes('NOAA') || name.includes('METEOSAT')) {
+        category = 'Weather';
+        color = Cesium.Color.ORANGE;
+    } else if (name.includes('HUBBLE') || name.includes('LANDSAT') || name.includes('SENTINEL')) {
+        category = 'Scientific';
+        color = Cesium.Color.MAGENTA;
+    } else if (satData.OBJECT_TYPE === 'DEBRIS') {
+        category = 'Debris';
+        color = Cesium.Color.RED;
+    } else if (satData.OBJECT_TYPE === 'ROCKET BODY') {
+        category = 'Rocket Body';
+        color = Cesium.Color.YELLOW;
+    } else if (owner.includes('US')) {
+        category = 'US Military/Civil';
+        color = Cesium.Color.DODGERBLUE;
+    } else if (owner.includes('RUSS')) {
+        category = 'Russian';
+        color = Cesium.Color.RED;
+    } else if (owner.includes('PRC')) {
+        category = 'Chinese';
+        color = Cesium.Color.YELLOW;
+    } else if (owner.includes('ESA')) {
+        category = 'ESA';
+        color = Cesium.Color.LIGHTBLUE;
     }
     
-    // Navigation satellites
-    if (name.includes('GPS') || name.includes('GLONASS') || name.includes('GALILEO') || name.includes('BEIDOU')) {
-        return Cesium.Color.LIME;
-    }
-    
-    // Communication satellites
-    if (name.includes('STARLINK') || name.includes('ONEWEB')) {
-        return Cesium.Color.CYAN;
-    }
-    
-    // Weather satellites
-    if (name.includes('GOES') || name.includes('NOAA') || name.includes('METEOSAT')) {
-        return Cesium.Color.ORANGE;
-    }
-    
-    // Scientific satellites
-    if (name.includes('HUBBLE') || name.includes('LANDSAT') || name.includes('SENTINEL')) {
-        return Cesium.Color.MAGENTA;
-    }
-    
-    // By country/operator
-    if (owner.includes('US')) return Cesium.Color.DODGERBLUE;
-    if (owner.includes('RUSS')) return Cesium.Color.RED;
-    if (owner.includes('PRC')) return Cesium.Color.YELLOW;
-    if (owner.includes('ESA')) return Cesium.Color.LIGHTBLUE;
-    
-    // Default
-    return Cesium.Color.GRAY;
+    return { category, color };
 }
 
 // Determine satellite size based on RCS or type
@@ -502,6 +513,183 @@ function displaySatelliteInfo(details, position) {
     `;
 }
 
+// Start region drawing
+function startRegionDrawing() {
+    state.drawingRegion = true;
+    state.regionPositions = [];
+    state.startPosition = null;
+    
+    // Temporary handler for drawing rectangle
+    const handler = new Cesium.ScreenSpaceEventHandler(state.viewer.scene.canvas);
+    
+    handler.setInputAction((movement) => {
+        const cartesian = state.viewer.camera.pickEllipsoid(movement.position);
+        if (cartesian) {
+            const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+            state.startPosition = {
+                lon: Cesium.Math.toDegrees(cartographic.longitude),
+                lat: Cesium.Math.toDegrees(cartographic.latitude)
+            };
+        }
+    }, Cesium.ScreenSpaceEventType.LEFT_DOWN);
+    
+    handler.setInputAction((movement) => {
+        if (!state.startPosition) return;
+        
+        const cartesian = state.viewer.camera.pickEllipsoid(movement.endPosition);
+        if (cartesian) {
+            const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+            const endLon = Cesium.Math.toDegrees(cartographic.longitude);
+            const endLat = Cesium.Math.toDegrees(cartographic.latitude);
+            
+            // Update rectangle
+            if (state.regionEntity) {
+                state.viewer.entities.remove(state.regionEntity);
+            }
+            state.regionEntity = state.viewer.entities.add({
+                rectangle: {
+                    coordinates: Cesium.Rectangle.fromDegrees(
+                        Math.min(state.startPosition.lon, endLon),
+                        Math.min(state.startPosition.lat, endLat),
+                        Math.max(state.startPosition.lon, endLon),
+                        Math.max(state.startPosition.lat, endLat)
+                    ),
+                    material: Cesium.Color.RED.withAlpha(0.3),
+                    outline: true,
+                    outlineColor: Cesium.Color.RED
+                }
+            });
+        }
+    }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+    
+    handler.setInputAction((movement) => {
+        handler.destroy();
+        state.drawingRegion = false;
+        
+        const cartesian = state.viewer.camera.pickEllipsoid(movement.position);
+        if (cartesian && state.startPosition) {
+            const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+            const endLon = Cesium.Math.toDegrees(cartographic.longitude);
+            const endLat = Cesium.Math.toDegrees(cartographic.latitude);
+            
+            const west = Math.min(state.startPosition.lon, endLon);
+            const south = Math.min(state.startPosition.lat, endLat);
+            const east = Math.max(state.startPosition.lon, endLon);
+            const north = Math.max(state.startPosition.lat, endLat);
+            
+            analyzeRegion({ west, south, east, north });
+        }
+        
+        if (state.regionEntity) {
+            state.viewer.entities.remove(state.regionEntity);
+            state.regionEntity = null;
+        }
+    }, Cesium.ScreenSpaceEventType.LEFT_UP);
+}
+
+// Analyze satellites over region in last 24 hours
+function analyzeRegion(rectangle) {
+    updateLoadingStatus('Analyzing region...');
+    
+    const now = new Date();
+    const startTime = new Date(now.getTime() - CONFIG.REGION_ANALYSIS_HOURS * 60 * 60 * 1000);
+    const timeSteps = (CONFIG.REGION_ANALYSIS_HOURS * 60) / CONFIG.REGION_ANALYSIS_INTERVAL_MIN;
+    const stepMs = CONFIG.REGION_ANALYSIS_INTERVAL_MIN * 60 * 1000;
+    
+    const categoryCounts = new Map();
+    const passDetails = []; // For CSV: satName, category, passTime
+    
+    for (const [noradId, satData] of state.satellites) {
+        try {
+            const satrec = satellite.twoline2satrec(satData.TLE_LINE1, satData.TLE_LINE2);
+            if (satrec.error !== 0) continue;
+            
+            const { category, color } = getSatelliteCategoryAndColor(satData);
+            let passed = false;
+            let passTimes = [];
+            
+            for (let i = 0; i <= timeSteps; i++) {
+                const time = new Date(startTime.getTime() + i * stepMs);
+                const positionAndVelocity = satellite.propagate(satrec, time);
+                if (!positionAndVelocity.position) continue;
+                
+                const gmst = satellite.gstime(time);
+                const geodetic = satellite.eciToGeodetic(positionAndVelocity.position, gmst);
+                const lon = satellite.degreesLong(geodetic.longitude);
+                const lat = satellite.degreesLat(geodetic.latitude);
+                
+                if (lon >= rectangle.west && lon <= rectangle.east &&
+                    lat >= rectangle.south && lat <= rectangle.north) {
+                    passed = true;
+                    passTimes.push(time.toISOString());
+                }
+            }
+            
+            if (passed) {
+                const count = categoryCounts.get(category) || { count: 0, color: color.toCssColorString(), sats: [] };
+                count.count++;
+                count.sats.push(satData.OBJECT_NAME);
+                categoryCounts.set(category, count);
+                
+                passTimes.forEach(time => {
+                    passDetails.push({ satName: satData.OBJECT_NAME, category, passTime: time });
+                });
+            }
+        } catch (error) {
+            console.warn(`Analysis failed for ${noradId}:`, error);
+        }
+    }
+    
+    displayRegionAnalysis(categoryCounts);
+    setupCsvExport(passDetails);
+    
+    updateLoadingStatus(null);
+}
+
+// Display region analysis results
+function displayRegionAnalysis(categoryCounts) {
+    const resultsDiv = document.getElementById('analysisResults');
+    resultsDiv.innerHTML = '';
+    
+    let total = 0;
+    const table = document.createElement('table');
+    table.style.width = '100%';
+    table.innerHTML = '<tr><th>Category</th><th>Count</th><th>Color</th></tr>';
+    
+    for (const [category, data] of categoryCounts) {
+        total += data.count;
+        const row = `<tr>
+            <td>${category}</td>
+            <td>${data.count}</td>
+            <td><div style="width:20px;height:20px;background:${data.color};border:1px solid white;"></div></td>
+        </tr>`;
+        table.innerHTML += row;
+    }
+    
+    resultsDiv.appendChild(table);
+    resultsDiv.innerHTML += `<p>Total satellites passed: ${total}</p>`;
+    
+    document.getElementById('regionAnalysis').style.display = 'block';
+}
+
+// Setup CSV export
+function setupCsvExport(passDetails) {
+    document.getElementById('exportCsvBtn').onclick = () => {
+        let csv = 'Satellite Name,Category,Pass Time\n';
+        passDetails.forEach(detail => {
+            csv += `${detail.satName},${detail.category},${detail.passTime}\n`;
+        });
+        
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'region_satellite_passes.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+}
+
 // UI Helper functions
 function updateLoadingStatus(message) {
     const indicator = document.getElementById('loadingIndicator');
@@ -589,6 +777,12 @@ function initializeUI() {
                 selectSatellite(noradId);
             }
         }
+    });
+    
+    // Region analysis button
+    document.getElementById('analyzeRegionBtn').addEventListener('click', () => {
+        if (state.drawingRegion) return;
+        startRegionDrawing();
     });
 }
 

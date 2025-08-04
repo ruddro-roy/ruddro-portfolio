@@ -16,6 +16,8 @@ const CONFIG = {
     PERFORMANCE_MONITOR_INTERVAL: 1000,
     CESIUM_BASE_LAYER_ASSET_ID: 3812, // High-resolution Bing Maps
     CESIUM_TERRAIN_ASSET_ID: 1, // Cesium World Terrain
+    MAX_RETRY_ATTEMPTS: 3,
+    RETRY_DELAY: 2000,
 };
 
 // Application State
@@ -38,6 +40,7 @@ const AppState = {
     lastDataUpdate: null,
     connectionStatus: 'disconnected',
     errorCount: 0,
+    retryAttempts: 0,
     
     // Performance monitoring
     frameCount: 0,
@@ -92,6 +95,8 @@ const Utils = {
 
     showMessage: (message, type = 'info', duration = 5000) => {
         const container = document.getElementById('messageContainer');
+        if (!container) return;
+        
         const messageDiv = document.createElement('div');
         messageDiv.className = type === 'error' ? 'error-message' : 'success-message';
         messageDiv.textContent = message;
@@ -103,42 +108,64 @@ const Utils = {
                 messageDiv.parentNode.removeChild(messageDiv);
             }
         }, duration);
-    }
+    },
+
+    sleep: (ms) => new Promise(resolve => setTimeout(resolve, ms))
 };
 
 // Session Management
 const SessionManager = {
     async initialize() {
-        try {
-            console.log('Initializing secure session...');
-            
-            const response = await fetch(`${CONFIG.API_BASE}/api/session`, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
+        let lastError = null;
+        
+        for (let attempt = 0; attempt < CONFIG.MAX_RETRY_ATTEMPTS; attempt++) {
+            try {
+                console.log(`Initializing secure session... (attempt ${attempt + 1}/${CONFIG.MAX_RETRY_ATTEMPTS})`);
+                
+                const response = await fetch(`${CONFIG.API_BASE}/api/session`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 10000
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Session initialization failed: ${response.status} - ${errorText}`);
                 }
-            });
 
-            if (!response.ok) {
-                throw new Error(`Session initialization failed: ${response.status}`);
+                AppState.session = await response.json();
+                console.log('Session established:', AppState.session.sessionId);
+                AppState.retryAttempts = 0;
+
+                // Schedule session refresh before expiry
+                setTimeout(() => {
+                    this.initialize();
+                }, CONFIG.SESSION_REFRESH_INTERVAL);
+
+                return AppState.session;
+
+            } catch (error) {
+                lastError = error;
+                console.error(`Session initialization attempt ${attempt + 1} failed:`, error);
+                
+                if (attempt < CONFIG.MAX_RETRY_ATTEMPTS - 1) {
+                    console.log(`Retrying in ${CONFIG.RETRY_DELAY}ms...`);
+                    await Utils.sleep(CONFIG.RETRY_DELAY);
+                }
             }
-
-            AppState.session = await response.json();
-            console.log('Session established:', AppState.session.sessionId);
-
-            // Schedule session refresh before expiry
-            setTimeout(() => {
-                this.initialize();
-            }, CONFIG.SESSION_REFRESH_INTERVAL);
-
-            return AppState.session;
-
-        } catch (error) {
-            console.error('Session initialization error:', error);
-            Utils.showMessage('Failed to establish secure session', 'error');
-            throw error;
         }
+        
+        // All attempts failed
+        console.error('All session initialization attempts failed:', lastError);
+        AppState.retryAttempts = CONFIG.MAX_RETRY_ATTEMPTS;
+        
+        const errorMessage = lastError?.message || 'Unknown error';
+        Utils.showMessage(`Failed to establish secure session: ${errorMessage}`, 'error');
+        
+        throw new Error(`Session initialization failed after ${CONFIG.MAX_RETRY_ATTEMPTS} attempts: ${errorMessage}`);
     },
 
     getHeaders() {
@@ -164,31 +191,19 @@ const CesiumManager = {
 
             updateLoadingStatus('Configuring Cesium Ion...');
 
+            // Check if Cesium is available
+            if (typeof Cesium === 'undefined') {
+                throw new Error('Cesium library not loaded. Please check your internet connection.');
+            }
+
             // Configure Cesium to use our secure proxy
             Cesium.Ion.defaultAccessToken = undefined;
 
-            // Create resource override for secure proxy access
-            const originalResource = Cesium.Resource.fetchJson;
-            Cesium.Resource.fetchJson = function(options) {
-                if (typeof options === 'object' && options.url) {
-                    options.url = this.proxyUrl(options.url);
-                    options.headers = { ...options.headers, ...SessionManager.getHeaders() };
-                }
-                return originalResource.call(this, options);
-            };
-
-            // Initialize Cesium Viewer with enterprise configuration
+            // Simple Cesium viewer initialization without complex proxy overrides for now
             AppState.viewer = new Cesium.Viewer('cesiumContainer', {
-                // High-resolution imagery
-                imageryProvider: await Cesium.IonImageryProvider.fromAssetId(CONFIG.CESIUM_BASE_LAYER_ASSET_ID, {
-                    accessToken: undefined // Will use our proxy
-                }),
-
-                // World terrain
-                terrainProvider: await Cesium.CesiumTerrainProvider.fromIonAssetId(CONFIG.CESIUM_TERRAIN_ASSET_ID, {
-                    accessToken: undefined // Will use our proxy
-                }),
-
+                // Basic configuration that should work without advanced proxy
+                terrainProvider: Cesium.Terrain.fromWorldTerrain(),
+                
                 // Scene configuration for performance
                 scene3DOnly: false,
                 orderIndependentTranslucency: false,
@@ -224,16 +239,6 @@ const CesiumManager = {
             scene.globe.dynamicAtmosphereLightingFromSun = true;
             scene.globe.showGroundAtmosphere = true;
             scene.globe.depthTestAgainstTerrain = false;
-            scene.skyBox = new Cesium.SkyBox({
-                sources: {
-                    positiveX: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-                    negativeX: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-                    positiveY: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-                    negativeY: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-                    positiveZ: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-                    negativeZ: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
-                }
-            });
 
             // Set initial camera position
             AppState.viewer.camera.setView({
@@ -259,21 +264,9 @@ const CesiumManager = {
         } catch (error) {
             console.error('Cesium initialization failed:', error);
             updateStatus('cesium', 'error', 'Failed');
+            Utils.showMessage(`3D visualization failed: ${error.message}`, 'error');
             throw error;
         }
-    },
-
-    proxyUrl(originalUrl) {
-        if (originalUrl.includes('cesium.com') || originalUrl.includes('ion.cesium.com')) {
-            // Replace Cesium URLs with our proxy
-            let proxyPath = originalUrl
-                .replace('https://api.cesium.com/', '')
-                .replace('https://assets.ion.cesium.com/', '')
-                .replace('https://assets.cesium.com/', '');
-            
-            return `${CONFIG.API_BASE}/api/cesium-proxy/${proxyPath}`;
-        }
-        return originalUrl;
     },
 
     onSatelliteClick(event) {
@@ -317,11 +310,13 @@ const SatelliteManager = {
             updateStatus('data', 'active', 'Fetching');
 
             const response = await fetch(`${CONFIG.API_BASE}/api/satellites/live`, {
-                headers: SessionManager.getHeaders()
+                headers: SessionManager.getHeaders(),
+                timeout: 30000
             });
 
             if (!response.ok) {
-                throw new Error(`Data fetch failed: ${response.status}`);
+                const errorText = await response.text();
+                throw new Error(`Data fetch failed: ${response.status} - ${errorText}`);
             }
 
             const data = await response.json();
@@ -536,21 +531,8 @@ const SatelliteManager = {
         AppState.selectedSatellite = noradId;
 
         try {
-            // Fetch detailed information
-            const response = await fetch(`${CONFIG.API_BASE}/api/satellite/${noradId}/details`, {
-                headers: SessionManager.getHeaders()
-            });
-
-            let detailInfo = {};
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success) {
-                    detailInfo = data.satellite;
-                }
-            }
-
-            // Update info panel
-            this.updateInfoPanel(satData, detailInfo);
+            // Update info panel with basic data first
+            this.updateInfoPanel(satData);
 
             // Center view on satellite
             if (satData.position && AppState.viewer) {
@@ -564,14 +546,26 @@ const SatelliteManager = {
                 });
             }
 
+            // Try to fetch detailed information
+            const response = await fetch(`${CONFIG.API_BASE}/api/satellite/${noradId}/details`, {
+                headers: SessionManager.getHeaders()
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    this.updateInfoPanel(satData, data.satellite);
+                }
+            }
+
         } catch (error) {
             console.error('Failed to load satellite details:', error);
-            this.updateInfoPanel(satData);
         }
     },
 
     updateInfoPanel(satData, detailInfo = {}) {
         const panel = document.getElementById('satelliteInfo');
+        if (!panel) return;
         
         const html = `
             <div class="info-row">
@@ -619,13 +613,15 @@ const SatelliteManager = {
 
     toggleOrbits() {
         AppState.showOrbits = !AppState.showOrbits;
-        document.getElementById('toggleOrbitsBtn').classList.toggle('active', AppState.showOrbits);
+        const btn = document.getElementById('toggleOrbitsBtn');
+        if (btn) btn.classList.toggle('active', AppState.showOrbits);
         this.renderSatellites();
     },
 
     toggleLabels() {
         AppState.showLabels = !AppState.showLabels;
-        document.getElementById('toggleLabelsBtn').classList.toggle('active', AppState.showLabels);
+        const btn = document.getElementById('toggleLabelsBtn');
+        if (btn) btn.classList.toggle('active', AppState.showLabels);
         this.renderSatellites();
     },
 
@@ -636,7 +632,8 @@ const SatelliteManager = {
         document.querySelectorAll('[id$="Btn"]').forEach(btn => {
             btn.classList.remove('active');
         });
-        document.getElementById(`show${filter.charAt(0).toUpperCase() + filter.slice(1)}Btn`).classList.add('active');
+        const activeBtn = document.getElementById(`show${filter.charAt(0).toUpperCase() + filter.slice(1)}Btn`);
+        if (activeBtn) activeBtn.classList.add('active');
         
         this.renderSatellites();
     }
@@ -647,6 +644,8 @@ const SearchManager = {
     initialize() {
         const searchInput = document.getElementById('satelliteSearch');
         const resultsContainer = document.getElementById('searchResults');
+
+        if (!searchInput || !resultsContainer) return;
 
         searchInput.addEventListener('input', Utils.debounce((e) => {
             this.performSearch(e.target.value.trim());
@@ -667,6 +666,7 @@ const SearchManager = {
 
     performSearch(query) {
         const resultsContainer = document.getElementById('searchResults');
+        if (!resultsContainer) return;
         
         if (query.length < 2) {
             resultsContainer.style.display = 'none';
@@ -697,6 +697,7 @@ const SearchManager = {
 
     displaySearchResults() {
         const resultsContainer = document.getElementById('searchResults');
+        if (!resultsContainer) return;
         
         if (AppState.searchResults.length === 0) {
             resultsContainer.style.display = 'none';
@@ -716,8 +717,11 @@ const SearchManager = {
 
     selectResult(noradId) {
         SatelliteManager.selectSatellite(noradId);
-        document.getElementById('searchResults').style.display = 'none';
-        document.getElementById('satelliteSearch').value = '';
+        const resultsContainer = document.getElementById('searchResults');
+        const searchInput = document.getElementById('satelliteSearch');
+        
+        if (resultsContainer) resultsContainer.style.display = 'none';
+        if (searchInput) searchInput.value = '';
     }
 };
 
@@ -738,7 +742,8 @@ const PerformanceMonitor = {
             AppState.frameCount = 0;
             AppState.lastFrameTime = now;
             
-            document.getElementById('fpsCounter').textContent = AppState.fps;
+            const fpsCounter = document.getElementById('fpsCounter');
+            if (fpsCounter) fpsCounter.textContent = AppState.fps;
         }
     }
 };
@@ -747,6 +752,8 @@ const PerformanceMonitor = {
 function updateLoadingStatus(message) {
     const overlay = document.getElementById('loadingOverlay');
     const statusText = document.getElementById('loadingStatus');
+    
+    if (!overlay || !statusText) return;
     
     if (message) {
         statusText.textContent = message;
@@ -770,43 +777,58 @@ function updateStatus(service, status, text) {
 }
 
 function updateSatelliteCount(count) {
-    document.getElementById('satCount').textContent = count;
+    const satCount = document.getElementById('satCount');
+    if (satCount) satCount.textContent = count;
 }
 
 function updateLastUpdateTime() {
-    if (AppState.lastDataUpdate) {
-        document.getElementById('lastUpdateText').textContent = 
-            Utils.formatDate(AppState.lastDataUpdate);
+    const lastUpdateText = document.getElementById('lastUpdateText');
+    if (AppState.lastDataUpdate && lastUpdateText) {
+        lastUpdateText.textContent = Utils.formatDate(AppState.lastDataUpdate);
     }
 }
 
 // Event Handlers
 function setupEventHandlers() {
     // View controls
-    document.getElementById('resetViewBtn').addEventListener('click', CesiumManager.resetView);
-    document.getElementById('toggleOrbitsBtn').addEventListener('click', SatelliteManager.toggleOrbits);
-    document.getElementById('toggleLabelsBtn').addEventListener('click', SatelliteManager.toggleLabels);
-    document.getElementById('toggleDayNightBtn').addEventListener('click', CesiumManager.toggleDayNight);
+    const resetViewBtn = document.getElementById('resetViewBtn');
+    const toggleOrbitsBtn = document.getElementById('toggleOrbitsBtn');
+    const toggleLabelsBtn = document.getElementById('toggleLabelsBtn');
+    const toggleDayNightBtn = document.getElementById('toggleDayNightBtn');
+
+    if (resetViewBtn) resetViewBtn.addEventListener('click', CesiumManager.resetView);
+    if (toggleOrbitsBtn) toggleOrbitsBtn.addEventListener('click', SatelliteManager.toggleOrbits);
+    if (toggleLabelsBtn) toggleLabelsBtn.addEventListener('click', SatelliteManager.toggleLabels);
+    if (toggleDayNightBtn) toggleDayNightBtn.addEventListener('click', CesiumManager.toggleDayNight);
 
     // Filter controls
-    document.getElementById('showAllBtn').addEventListener('click', () => SatelliteManager.setFilter('all'));
-    document.getElementById('showActiveBtn').addEventListener('click', () => SatelliteManager.setFilter('active'));
-    document.getElementById('showStarlinkBtn').addEventListener('click', () => SatelliteManager.setFilter('starlink'));
-    document.getElementById('showGPSBtn').addEventListener('click', () => SatelliteManager.setFilter('gps'));
+    const showAllBtn = document.getElementById('showAllBtn');
+    const showActiveBtn = document.getElementById('showActiveBtn');
+    const showStarlinkBtn = document.getElementById('showStarlinkBtn');
+    const showGPSBtn = document.getElementById('showGPSBtn');
+
+    if (showAllBtn) showAllBtn.addEventListener('click', () => SatelliteManager.setFilter('all'));
+    if (showActiveBtn) showActiveBtn.addEventListener('click', () => SatelliteManager.setFilter('active'));
+    if (showStarlinkBtn) showStarlinkBtn.addEventListener('click', () => SatelliteManager.setFilter('starlink'));
+    if (showGPSBtn) showGPSBtn.addEventListener('click', () => SatelliteManager.setFilter('gps'));
 }
 
 // Application Initialization
 async function initializeApplication() {
     try {
         console.log('Starting Mission Control Enterprise...');
+        updateLoadingStatus('Initializing Mission Control...');
         
         // Initialize session management
+        updateLoadingStatus('Establishing secure connection...');
         await SessionManager.initialize();
         
         // Initialize Cesium
+        updateLoadingStatus('Initializing 3D visualization...');
         await CesiumManager.initialize();
         
         // Load satellite data
+        updateLoadingStatus('Loading satellite data...');
         await SatelliteManager.loadSatelliteData();
         
         // Initialize UI components
@@ -825,29 +847,48 @@ async function initializeApplication() {
             }
         }, CONFIG.UPDATE_INTERVAL);
         
+        updateLoadingStatus(null);
         console.log('Mission Control Enterprise initialized successfully');
         Utils.showMessage('Mission Control Enterprise ready', 'success');
         
     } catch (error) {
         console.error('Application initialization failed:', error);
-        Utils.showMessage(`Initialization failed: ${error.message}`, 'error');
-        updateLoadingStatus(`Error: ${error.message}`);
+        
+        const errorMessage = error.message || 'Unknown error occurred';
+        updateLoadingStatus(`Initialization failed: ${errorMessage}`);
+        Utils.showMessage(`Initialization failed: ${errorMessage}`, 'error');
+        
+        // Show diagnostic information
+        console.log('=== DIAGNOSTIC INFORMATION ===');
+        console.log('Session state:', AppState.session);
+        console.log('Retry attempts:', AppState.retryAttempts);
+        console.log('Current URL:', window.location.href);
+        console.log('User agent:', navigator.userAgent);
+        console.log('==============================');
     }
 }
 
 // Start the application
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM loaded, initializing application...');
+    
+    // Check for required elements
+    const requiredElements = ['cesiumContainer', 'loadingOverlay', 'loadingStatus'];
+    const missingElements = requiredElements.filter(id => !document.getElementById(id));
+    
+    if (missingElements.length > 0) {
+        console.error('Missing required DOM elements:', missingElements);
+        return;
+    }
+    
     initializeApplication();
 });
 
 // Handle page visibility changes for performance
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
-        // Pause updates when tab is not visible
         console.log('Tab hidden, pausing updates');
     } else {
-        // Resume updates when tab becomes visible
         console.log('Tab visible, resuming updates');
         if (AppState.systemReady) {
             SatelliteManager.renderSatellites();

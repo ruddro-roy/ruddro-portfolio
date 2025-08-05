@@ -1,4 +1,4 @@
-name: Satellite Tracking Platform CI/CD
+name: CI/CD Pipeline
 
 on:
   push:

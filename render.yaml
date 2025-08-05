@@ -211,5 +211,5 @@ databases:
   - name: satellite-db
     databaseName: satellite_tracker
     user: satellite_user
-    plan: starter
+    instanceType: Basic-256mb  # Updated from legacy 'starter' plan
     region: oregon

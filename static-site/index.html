@@ -200,47 +200,6 @@
             margin: 0 auto 3rem;
         }
 
-        .cta-buttons {
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        .btn {
-            padding: 0.875rem 2rem;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            border: 1px solid transparent;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .btn-primary {
-            background: var(--accent-primary);
-            color: var(--bg-primary);
-        }
-
-        .btn-primary:hover {
-            background: transparent;
-            color: var(--accent-primary);
-            border-color: var(--accent-primary);
-        }
-
-        .btn-secondary {
-            background: transparent;
-            color: var(--text-primary);
-            border-color: var(--border-primary);
-        }
-
-        .btn-secondary:hover {
-            border-color: var(--accent-primary);
-            color: var(--accent-primary);
-        }
-
         /* Sections */
         .section-title {
             font-size: 2.5rem;
@@ -249,14 +208,14 @@
             text-align: center;
         }
 
-        .about-content {
+        .about-content, .journey-content {
             max-width: 800px;
             margin: 0 auto;
             font-size: 1.1rem;
             line-height: 1.8;
         }
 
-        .about-content p {
+        .about-content p, .journey-content p {
             margin-bottom: 1.5rem;
         }
 
@@ -296,41 +255,14 @@
             margin-bottom: 1.5rem;
         }
 
-        .project-links {
-            display: flex;
-            gap: 1rem;
-        }
-
-        .project-link {
-            color: var(--accent-primary);
-            text-decoration: none;
-            font-weight: 500;
-            transition: color 0.3s ease;
-        }
-
-        .project-link:hover {
-            color: var(--text-primary);
-        }
-
-        /* Bio section */
-        .bio-content {
-            max-width: 800px;
-            margin: 0 auto;
-            display: grid;
-            gap: 2rem;
-        }
-
-        .bio-item {
-            background: var(--bg-secondary);
-            padding: 2rem;
-            border-radius: 12px;
-            border: 1px solid var(--border-secondary);
-        }
-
-        .bio-item h3 {
-            color: var(--accent-primary);
-            margin-bottom: 1rem;
-            font-size: 1.3rem;
+        .project-status {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            color: var(--text-muted);
         }
 
         /* Contact section */
@@ -395,11 +327,6 @@
                 font-size: 1.2rem;
             }
 
-            .cta-buttons {
-                flex-direction: column;
-                align-items: center;
-            }
-
             .projects-grid {
                 grid-template-columns: 1fr;
             }
@@ -451,8 +378,8 @@
             <a href="#" class="logo">Ruddro Roy</a>
             <div class="nav-links">
                 <a href="#about" class="nav-link active" data-section="about">About</a>
+                <a href="#journey" class="nav-link" data-section="journey">My Journey</a>
                 <a href="#projects" class="nav-link" data-section="projects">Projects</a>
-                <a href="#bio" class="nav-link" data-section="bio">Bio</a>
                 <a href="#contact" class="nav-link" data-section="contact">Contact</a>
                 <button class="theme-toggle" aria-label="Toggle theme">🌙</button>
             </div>
@@ -470,14 +397,6 @@
                     Advancing space situational awareness through autonomous satellite tracking systems, 
                     orbital mechanics modeling, and innovative threat assessment algorithms.
                 </p>
-                <div class="cta-buttons fade-in-up">
-                    <a href="https://starlink.ruddro.com" target="_blank" class="btn btn-primary">
-                        🛰️ Live Tracking Platform
-                    </a>
-                    <a href="https://ruddro.com" target="_blank" class="btn btn-secondary">
-                        🌐 Main Portfolio
-                    </a>
-                </div>
             </div>
         </section>
 
@@ -507,6 +426,70 @@
             </div>
         </section>
 
+        <!-- My Journey Section -->
+        <section id="journey" class="section">
+            <div class="container">
+                <div class="section-content">
+                    <h2 class="section-title">My Journey</h2>
+                    <div class="journey-content">
+                        <p>
+                            I graduated with a degree in Electrical and Electronic Engineering from Bangladesh, but my path 
+                            took an unconventional turn when I discovered my passion for space technology through active 
+                            participation in NASA online events. I engaged remotely with various missions including Mars 
+                            exploration, lunar observation programs, NASA DART, NASA EPDC, and NASA GLOBE citizen science projects.
+                        </p>
+                        <p>
+                            During my volunteer work with the NASA GLOBE project, I first encountered the real-time applications 
+                            of satellites Aqua and Terra. This experience ignited my desire to work with space agencies, though 
+                            I later realized that direct work at NASA requires US citizenship. Despite limited resources and 
+                            opportunities in Bangladesh for pursuing non-traditional academic paths, I committed to self-learning 
+                            using available public resources.
+                        </p>
+                        <p>
+                            Through this journey, I discovered my learning style: I absorb information better through listening 
+                            rather than reading. This led me to experiment with teaching as a way to understand myself better. 
+                            I found that I could explain complex technical concepts in simple terms using real-world examples, 
+                            often diving deep into interconnected thoughts that generate innovative ideas. This iterative process 
+                            of explaining, developing ideas, and refining concepts revealed a potential aptitude for cognitive 
+                            science applications.
+                        </p>
+                        <p>
+                            I applied to universities across multiple countries including France, Italy, the UK, and India, 
+                            successfully receiving offers with partial scholarships. In 2024, I chose to study in France and 
+                            received my visa. However, due to foreign currency scarcity in Bangladesh and banking officials' 
+                            misinformation, I faced significant challenges in securing accommodation payments. Despite purchasing 
+                            air tickets and completing currency exchange, I had to cancel everything just seven days before departure.
+                        </p>
+                        <p>
+                            This experience taught me valuable lessons about systemic challenges and the importance of authentic 
+                            self-representation. I witnessed many students using third-party brokers for university applications, 
+                            including writing statements of purpose. I fundamentally oppose this approach, believing that if 
+                            someone cannot articulate their own goals and motivations, they are not yet ready for advanced study. 
+                            Understanding yourself and your objectives is crucial for thesis work and internships in the final 
+                            stages of university education.
+                        </p>
+                        <p>
+                            My analytical thinking often allows me to predict potential challenges through what I call "entangled 
+                            thoughts" - interconnected reasoning patterns that help identify problems before they manifest. This 
+                            predictive capability reinforces my belief that I could excel in cognitive science fields.
+                        </p>
+                        <p>
+                            Currently, I am enrolled in an MSc program in Communications Engineering at Politecnico di Torino 
+                            (PoliTO) as an international student, starting September 2025, and awaiting visa approval. My current 
+                            satellite tracking project stems from my early fascination with the Aqua and Terra satellites. 
+                            It is time to build innovative solutions in this field.
+                        </p>
+                        <p>
+                            Technology is inevitable, and my philosophy centers on creating an autonomous, utopian future. 
+                            While current attention focuses on AI, many perceive it merely as chatbots or writing tools. 
+                            This represents a fundamental misunderstanding of AI's true potential and applications in advancing 
+                            human civilization.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- Projects Section -->
         <section id="projects" class="section">
             <div class="container">
@@ -519,10 +502,7 @@
                                 Real-time tracking system for 20,000+ satellites with autonomous threat assessment, 
                                 precise orbital mechanics using Skyfield/SGP4, and cloud-native microservices architecture.
                             </p>
-                            <div class="project-links">
-                                <a href="https://starlink.ruddro.com" target="_blank" class="project-link">Live Demo →</a>
-                                <a href="https://github.com/ruddro-roy/satellite-tracking-platform" target="_blank" class="project-link">Source Code →</a>
-                            </div>
+                            <div class="project-status">In Development</div>
                         </div>
 
                         <div class="project-card">
@@ -531,10 +511,7 @@
                                 Python-based microservice providing high-precision orbital calculations, pass predictions, 
                                 and conjunction analysis using advanced astronomical algorithms and distributed caching.
                             </p>
-                            <div class="project-links">
-                                <a href="#" class="project-link">Documentation →</a>
-                                <a href="#" class="project-link">API Reference →</a>
-                            </div>
+                            <div class="project-status">Active Development</div>
                         </div>
 
                         <div class="project-card">
@@ -543,10 +520,7 @@
                                 Self-healing data acquisition system with intelligent token rotation, adaptive rate limiting, 
                                 and automatic failover capabilities for continuous satellite tracking operations.
                             </p>
-                            <div class="project-links">
-                                <a href="#" class="project-link">Technical Details →</a>
-                                <a href="#" class="project-link">Architecture →</a>
-                            </div>
+                            <div class="project-status">Testing Phase</div>
                         </div>
 
                         <div class="project-card">
@@ -555,56 +529,7 @@
                                 Machine learning models for predicting satellite conjunctions, debris collision risks, 
                                 and space weather impacts on orbital mechanics with probabilistic risk scoring.
                             </p>
-                            <div class="project-links">
-                                <a href="#" class="project-link">Research Paper →</a>
-                                <a href="#" class="project-link">Model Performance →</a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Bio Section -->
-        <section id="bio" class="section">
-            <div class="container">
-                <div class="section-content">
-                    <h2 class="section-title">Bio</h2>
-                    <div class="bio-content">
-                        <div class="bio-item">
-                            <h3>Research Focus</h3>
-                            <p>
-                                Space situational awareness, autonomous satellite tracking, orbital mechanics modeling, 
-                                threat assessment algorithms, and real-time space object visualization systems.
-                            </p>
-                        </div>
-
-                        <div class="bio-item">
-                            <h3>Technical Expertise</h3>
-                            <p>
-                                <strong>Languages:</strong> TypeScript, Python, Rust, Go<br>
-                                <strong>Frameworks:</strong> React, Node.js, Flask, FastAPI<br>
-                                <strong>Orbital Mechanics:</strong> Skyfield, SGP4, Astropy, GMAT<br>
-                                <strong>Visualization:</strong> CesiumJS, Three.js, WebGL<br>
-                                <strong>Infrastructure:</strong> Docker, Kubernetes, MongoDB, Redis
-                            </p>
-                        </div>
-
-                        <div class="bio-item">
-                            <h3>Current Research</h3>
-                            <p>
-                                Developing next-generation autonomous satellite tracking systems with 
-                                sub-kilometer accuracy, investigating machine learning approaches for 
-                                conjunction prediction, and creating open-source tools for space situational awareness.
-                            </p>
-                        </div>
-
-                        <div class="bio-item">
-                            <h3>Impact & Contributions</h3>
-                            <p>
-                                Building accessible tools for space safety research, contributing to open-source 
-                                astronomical software, and advancing automated threat detection for space traffic management.
-                            </p>
+                            <div class="project-status">Research Phase</div>
                         </div>
                     </div>
                 </div>
@@ -623,8 +548,8 @@
                         </div>
 
                         <div class="contact-item">
-                            <h3>Portfolio</h3>
-                            <a href="https://ruddro.com" target="_blank">ruddro.com</a>
+                            <h3>X (Twitter)</h3>
+                            <a href="https://x.com/royrdro" target="_blank">@royrdro</a>
                         </div>
                     </div>
                 </div>

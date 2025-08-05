@@ -88,7 +88,7 @@ services:
         - README.md
         - tests/**
 
-  # Frontend (React) - Changed from static_site to web with runtime: static
+  # Frontend (React)
   - type: web
     name: satellite-tracking-frontend
     runtime: static
@@ -120,7 +120,7 @@ services:
         - README.md
         - tests/**
 
-  # Static Portfolio Site - Changed from static_site to web with runtime: static
+  # Static Portfolio Site
   - type: web
     name: ruddro-portfolio
     runtime: static
@@ -149,23 +149,7 @@ services:
       paths:
         - static-site/**
 
-# Databases and Infrastructure
-databases:
-  - name: satellite-db
-    databaseName: satellite_tracker
-    user: satellite_user
-    plan: standard
-    region: oregon
-
-  - name: satellite-cache
-    type: redis
-    name: satellite-cache
-    plan: standard
-    region: oregon
-    maxmemoryPolicy: allkeys-lru
-
-# Background Workers
-workers:
+  # Background Worker - Data Processor
   - type: worker
     name: satellite-data-processor
     runtime: python
@@ -189,6 +173,7 @@ workers:
       paths:
         - orbit-service/**
 
+  # Background Worker - Threat Analyzer
   - type: worker
     name: threat-analyzer
     runtime: python
@@ -212,9 +197,8 @@ workers:
       paths:
         - orbit-service/**
 
-# Cron Jobs
-cronjobs:
-  - type: cronjob
+  # Cron Job - Satellite Data Sync
+  - type: cron
     name: satellite-data-sync
     runtime: python
     schedule: "*/15 * * * *"  # Every 15 minutes
@@ -234,7 +218,8 @@ cronjobs:
       paths:
         - orbit-service/**
 
-  - type: cronjob
+  # Cron Job - Threat Assessment Batch
+  - type: cron
     name: threat-assessment-batch
     runtime: python
     schedule: "0 */6 * * *"  # Every 6 hours
@@ -253,3 +238,17 @@ cronjobs:
     buildFilter:
       paths:
         - orbit-service/**
+
+# Databases and Infrastructure
+databases:
+  - name: satellite-db
+    databaseName: satellite_tracker
+    user: satellite_user
+    plan: standard
+    region: oregon
+
+  - type: redis
+    name: satellite-cache
+    plan: standard
+    region: oregon
+    maxmemoryPolicy: allkeys-lru

@@ -29,23 +29,10 @@ services:
       - key: THREAT_ANALYSIS_ENABLED
         value: true
       - key: ORBIT_SERVICE_URL
-        fromService:
-          type: web
-          name: satellite-orbit-service
-          property: url
+        value: http://satellite-orbit-service:5000
     healthCheckPath: /api/health
     domains:
       - satellite-tracking.onrender.com
-    headers:
-      - path: /*
-        name: X-Frame-Options
-        value: SAMEORIGIN
-      - path: /*
-        name: X-Content-Type-Options
-        value: nosniff
-      - path: /*
-        name: Strict-Transport-Security
-        value: max-age=31536000; includeSubDomains
     buildFilter:
       paths:
         - backend/**
@@ -82,12 +69,11 @@ services:
         - README.md
         - tests/**
 
-  # Frontend (React)
+  # Frontend (React) - Static site without region
   - type: web
     name: satellite-tracking-frontend
     runtime: static
     plan: free
-    region: oregon
     buildCommand: cd frontend && npm ci && npm run build
     staticPublishPath: frontend/build
     pullRequestPreviewsEnabled: false
@@ -114,12 +100,11 @@ services:
         - README.md
         - tests/**
 
-  # Static Portfolio Site
+  # Static Portfolio Site - Without region
   - type: web
     name: ruddro-portfolio
     runtime: static
     plan: free
-    region: oregon
     buildCommand: cd static-site && echo "No build required"
     staticPublishPath: static-site
     pullRequestPreviewsEnabled: false
@@ -230,19 +215,3 @@ databases:
     user: satellite_user
     plan: standard
     region: oregon
-
-# Note: Redis Configuration
-# Render doesn't support Redis in the databases section.
-# You have two options for Redis:
-# 
-# Option 1: Use Render's Redis service (separate from Blueprint)
-# - Create a Redis instance manually in Render dashboard
-# - Get the connection URL and set REDIS_URL in environment variables
-#
-# Option 2: Use an external Redis provider
-# - Sign up for Redis Cloud (free tier available), Upstash, or similar
-# - Get the connection URL and set REDIS_URL in environment variables
-#
-# Recommended: Redis Cloud (redis.com) offers a free 30MB instance
-# After getting your Redis URL, set it in each service's environment 
-# variables in the Render dashboard.

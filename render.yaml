@@ -44,7 +44,7 @@ services:
   - type: web
     name: satellite-orbit-service
     runtime: python
-    plan: starter-plus
+    plan: professional
     region: oregon
     buildCommand: cd orbit-service && pip install -r requirements.txt
     startCommand: cd orbit-service && gunicorn --bind 0.0.0.0:$PORT --workers 4 --worker-class gevent --timeout 120 app:app

@@ -88,11 +88,14 @@ services:
         - README.md
         - tests/**
 
-  # Frontend (React)
-  - type: static_site
+  # Frontend (React) - Changed from static_site to web with runtime: static
+  - type: web
     name: satellite-tracking-frontend
+    runtime: static
+    plan: free
+    region: oregon
     buildCommand: cd frontend && npm ci && npm run build
-    publishPath: frontend/build
+    staticPublishPath: frontend/build
     pullRequestPreviewsEnabled: false
     domains:
       - app.satellite-tracking.com
@@ -107,7 +110,7 @@ services:
         name: Content-Security-Policy
         value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cesium.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cesium.com; img-src 'self' data: https: blob:; connect-src 'self' https://api.cesium.com https://assets.ion.cesium.com wss: ws:; worker-src 'self' blob:; font-src 'self' https:;"
     routes:
-      - type: redirect
+      - type: rewrite
         source: /*
         destination: /index.html
     buildFilter:
@@ -117,11 +120,14 @@ services:
         - README.md
         - tests/**
 
-  # Static Portfolio Site
-  - type: static_site
+  # Static Portfolio Site - Changed from static_site to web with runtime: static
+  - type: web
     name: ruddro-portfolio
+    runtime: static
+    plan: free
+    region: oregon
     buildCommand: cd static-site && echo "No build required"
-    publishPath: static-site
+    staticPublishPath: static-site
     pullRequestPreviewsEnabled: false
     domains:
       - portfolio.ruddro.com
@@ -136,7 +142,7 @@ services:
         name: Cache-Control
         value: public, max-age=31536000
     routes:
-      - type: redirect
+      - type: rewrite
         source: /*
         destination: /index.html
     buildFilter:

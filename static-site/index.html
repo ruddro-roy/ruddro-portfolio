@@ -265,6 +265,27 @@
             color: var(--text-muted);
         }
 
+        /* Bio section */
+        .bio-content {
+            max-width: 800px;
+            margin: 0 auto;
+            display: grid;
+            gap: 2rem;
+        }
+
+        .bio-item {
+            background: var(--bg-secondary);
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid var(--border-secondary);
+        }
+
+        .bio-item h3 {
+            color: var(--accent-primary);
+            margin-bottom: 1rem;
+            font-size: 1.3rem;
+        }
+
         /* Contact section */
         .contact-grid {
             display: grid;
@@ -379,6 +400,7 @@
             <div class="nav-links">
                 <a href="#about" class="nav-link active" data-section="about">About</a>
                 <a href="#journey" class="nav-link" data-section="journey">My Journey</a>
+                <a href="#tech" class="nav-link" data-section="tech">Technical Background</a>
                 <a href="#projects" class="nav-link" data-section="projects">Projects</a>
                 <a href="#contact" class="nav-link" data-section="contact">Contact</a>
                 <button class="theme-toggle" aria-label="Toggle theme">🌙</button>
@@ -499,6 +521,73 @@
                             autonomous utopian future. However, the current hype is AI, but if you think AI means only chatbots 
                             or writing tools, then you are again mistaken. There's so much more to explore and build.
                         </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Technical Background Section -->
+        <section id="tech" class="section">
+            <div class="container">
+                <div class="section-content">
+                    <h2 class="section-title">Technical Background</h2>
+                    <div class="bio-content">
+                        <div class="bio-item">
+                            <h3>What I'm Actually Building</h3>
+                            <p>
+                                Space situational awareness systems that don't just track satellites but predict where things 
+                                might go wrong. I'm talking autonomous satellite tracking, orbital mechanics modeling that 
+                                actually works in real-time, and threat assessment algorithms that can tell you if two objects 
+                                might have a bad day in space. Plus real-time 3D visualization because why just have data 
+                                when you can see it happening?
+                            </p>
+                        </div>
+
+                        <div class="bio-item">
+                            <h3>My Technical Arsenal</h3>
+                            <p>
+                                <strong>Languages I Think In:</strong> TypeScript, Python, Rust, Go<br>
+                                <strong>Frameworks I Live With:</strong> React, Node.js, Flask, FastAPI<br>
+                                <strong>Orbital Mechanics Tools:</strong> Skyfield, SGP4, Astropy, GMAT<br>
+                                <strong>Making Things Visual:</strong> CesiumJS, Three.js, WebGL<br>
+                                <strong>Infrastructure That Actually Works:</strong> Docker, Kubernetes, MongoDB, Redis
+                            </p>
+                            <p>
+                                But honestly, tools are just tools. What matters is understanding how satellites actually 
+                                move, how to predict their paths, and how to build systems that don't break when you're 
+                                tracking 20,000+ objects simultaneously.
+                            </p>
+                        </div>
+
+                        <div class="bio-item">
+                            <h3>Current Research & Development</h3>
+                            <p>
+                                I'm developing next-generation autonomous satellite tracking systems with sub-kilometer accuracy. 
+                                Not because it sounds cool, but because current systems often miss critical details. I'm also 
+                                investigating machine learning approaches for conjunction prediction - basically teaching computers 
+                                to predict when satellites might crash into each other before it happens.
+                            </p>
+                            <p>
+                                Plus, I'm creating open-source tools for space situational awareness because this stuff shouldn't 
+                                be locked behind corporate walls. Space affects everyone, so the tools to understand it should 
+                                be accessible to everyone.
+                            </p>
+                        </div>
+
+                        <div class="bio-item">
+                            <h3>Why This Actually Matters</h3>
+                            <p>
+                                I'm building accessible tools for space safety research, contributing to open-source astronomical 
+                                software, and advancing automated threat detection for space traffic management. Think of it as 
+                                building the air traffic control system for space - except space is much bigger, objects move 
+                                much faster, and there's no room for error.
+                            </p>
+                            <p>
+                                The goal isn't just to track things, but to make space safer for future missions, whether 
+                                they're scientific research, commercial ventures, or human exploration. Because honestly, 
+                                we're going to need clean orbital highways if we want to keep exploring.
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>

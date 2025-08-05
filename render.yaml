@@ -3,7 +3,7 @@ services:
   - type: web
     name: satellite-tracking-gateway
     runtime: node
-    plan: standard
+    plan: starter
     region: oregon
     buildCommand: cd backend && npm ci && npm run build
     startCommand: cd backend && npm start
@@ -44,7 +44,7 @@ services:
   - type: web
     name: satellite-orbit-service
     runtime: python
-    plan: standard plus
+    plan: starter-plus
     region: oregon
     buildCommand: cd orbit-service && pip install -r requirements.txt
     startCommand: cd orbit-service && gunicorn --bind 0.0.0.0:$PORT --workers 4 --worker-class gevent --timeout 120 app:app

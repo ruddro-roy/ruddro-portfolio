@@ -3,7 +3,7 @@ services:
   - type: web
     name: satellite-tracking-gateway
     runtime: node
-    plan: standard
+    plan: starter
     region: oregon
     buildCommand: cd backend && npm ci && npm run build
     startCommand: cd backend && npm start
@@ -44,7 +44,7 @@ services:
   - type: web
     name: satellite-orbit-service
     runtime: python
-    plan: pro
+    plan: starter
     region: oregon
     buildCommand: cd orbit-service && pip install -r requirements.txt
     startCommand: cd orbit-service && gunicorn --bind 0.0.0.0:$PORT --workers 4 --worker-class gevent --timeout 120 app:app
@@ -69,11 +69,10 @@ services:
         - README.md
         - tests/**
 
-  # Frontend (React) - Static site without region
+  # Frontend (React) - Static site without plan or region
   - type: web
     name: satellite-tracking-frontend
     runtime: static
-    plan: starter
     buildCommand: cd frontend && npm ci && npm run build
     staticPublishPath: frontend/build
     pullRequestPreviewsEnabled: false
@@ -100,11 +99,10 @@ services:
         - README.md
         - tests/**
 
-  # Static Portfolio Site - Without region
+  # Static Portfolio Site - Without plan or region
   - type: web
     name: ruddro-portfolio
-    runtime: starter
-    plan: Free static
+    runtime: static
     buildCommand: cd static-site && echo "No build required"
     staticPublishPath: static-site
     pullRequestPreviewsEnabled: false
@@ -132,7 +130,7 @@ services:
   - type: worker
     name: satellite-data-processor
     runtime: python
-    plan: standard
+    plan: starter
     region: oregon
     buildCommand: cd orbit-service && pip install -r requirements.txt
     startCommand: cd orbit-service && python worker.py
@@ -153,7 +151,7 @@ services:
   - type: worker
     name: threat-analyzer
     runtime: python
-    plan: standard
+    plan: starter
     region: oregon
     buildCommand: cd orbit-service && pip install -r requirements.txt
     startCommand: cd orbit-service && python threat_worker.py
@@ -213,5 +211,5 @@ databases:
   - name: satellite-db
     databaseName: satellite_tracker
     user: satellite_user
-    plan: standard
+    plan: starter
     region: oregon

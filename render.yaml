@@ -30,7 +30,7 @@ services:
   - key: THREAT_ANALYSIS_ENABLED
     value: true
   - key: ORBIT_SERVICE_URL
-    value: http://satellite-orbit-service:5000
+    value: https://satellite-orbit-service.onrender.com
   healthCheckPath: /api/health
   domains:
   - satellite-tracking.onrender.com

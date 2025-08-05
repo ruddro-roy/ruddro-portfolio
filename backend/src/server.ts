@@ -1,228 +1,162 @@
-import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
-import { createServer } from 'http';
-import { WebSocketServer } from 'ws';
-
-import { logger } from '@/utils/logger';
-import { connectDatabase } from '@/config/database';
-import { connectRedis } from '@/config/redis';
-import { errorHandler } from '@/middleware/errorHandler';
-import { authMiddleware } from '@/middleware/auth';
-import { validateRequest } from '@/middleware/validation';
-
-// Route imports
-import authRoutes from '@/routes/auth';
-import satelliteRoutes from '@/routes/satellites';
-import threatRoutes from '@/routes/threats';
-import healthRoutes from '@/routes/health';
-import cesiumRoutes from '@/routes/cesium';
-
-// Service imports
-import { SatelliteTracker } from '@/services/SatelliteTracker';
-import { ThreatAnalyzer } from '@/services/ThreatAnalyzer';
-import { AutonomousManager } from '@/services/AutonomousManager';
-import { WebSocketHandler } from '@/services/WebSocketHandler';
+import { config } from 'dotenv';
+import pino from 'pino';
 
 // Load environment variables
-dotenv.config();
+config();
 
-class SatelliteTrackingServer {
-  private app: express.Application;
-  private server: any;
-  private wss: WebSocketServer;
-  private satelliteTracker: SatelliteTracker;
-  private threatAnalyzer: ThreatAnalyzer;
-  private autonomousManager: AutonomousManager;
-  private wsHandler: WebSocketHandler;
+// Create logger
+const logger = pino({
+  transport: {
+    target: 'pino-pretty',
+    options: {
+      colorize: true,
+      translateTime: 'HH:MM:ss Z',
+      ignore: 'pid,hostname',
+    },
+  },
+});
 
-  constructor() {
-    this.app = express();
-    this.initializeMiddleware();
-    this.initializeRoutes();
-    this.initializeServices();
-    this.initializeWebSocket();
-    this.initializeErrorHandling();
-  }
+// Create Express app
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-  private initializeMiddleware(): void {
-    // Security middleware
-    this.app.use(helmet({
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'", "https://cesium.com", "https://cdn.jsdelivr.net"],
-          styleSrc: ["'self'", "'unsafe-inline'", "https://cesium.com"],
-          imgSrc: ["'self'", "data:", "https:", "blob:"],
-          connectSrc: ["'self'", "https://api.cesium.com", "https://assets.ion.cesium.com", "https://celestrak.org"],
-          workerSrc: ["'self'", "blob:"],
-          fontSrc: ["'self'", "https:"],
-        },
-      },
-      crossOriginEmbedderPolicy: false,
-    }));
+// Middleware
+app.use(helmet());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*',
+  credentials: true,
+}));
+app.use(compression());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-    // CORS configuration
-    this.app.use(cors({
-      origin: this.getAllowedOrigins(),
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-ID', 'X-API-Key'],
-    }));
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+});
+app.use('/api/', limiter);
 
-    // Rate limiting
-    const limiter = rateLimit({
-      windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
-      max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
-      message: { error: 'Too many requests, please try again later' },
-      standardHeaders: true,
-      legacyHeaders: false,
-    });
-    this.app.use('/api', limiter);
-
-    // Body parsing and compression
-    this.app.use(compression());
-    this.app.use(express.json({ limit: '10mb' }));
-    this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-    // Request logging
-    this.app.use((req, res, next) => {
-      logger.info({
-        method: req.method,
-        url: req.url,
-        ip: req.ip,
-        userAgent: req.get('User-Agent'),
-      }, 'Incoming request');
-      next();
-    });
-  }
-
-  private getAllowedOrigins(): string[] {
-    const origins = process.env.ALLOWED_ORIGINS;
-    if (!origins) return ['http://localhost:3001', 'http://localhost:3000'];
-    return origins.split(',').map(origin => origin.trim());
-  }
-
-  private initializeRoutes(): void {
-    // Health check (no auth required)
-    this.app.use('/api/health', healthRoutes);
-
-    // Authentication routes
-    this.app.use('/api/auth', authRoutes);
-
-    // Protected routes
-    this.app.use('/api/satellites', authMiddleware, satelliteRoutes);
-    this.app.use('/api/threats', authMiddleware, threatRoutes);
-    this.app.use('/api/cesium-proxy', authMiddleware, cesiumRoutes);
-
-    // Static file serving (if needed)
-    this.app.use('/static', express.static('public'));
-
-    // 404 handler
-    this.app.use('*', (req, res) => {
-      res.status(404).json({ error: 'Route not found' });
-    });
-  }
-
-  private async initializeServices(): Promise<void> {
-    try {
-      // Initialize tracking services
-      this.satelliteTracker = new SatelliteTracker();
-      this.threatAnalyzer = new ThreatAnalyzer();
-      this.autonomousManager = new AutonomousManager();
-
-      // Start autonomous operations
-      await this.autonomousManager.initialize();
-      
-      logger.info('All services initialized successfully');
-    } catch (error) {
-      logger.error({ error }, 'Failed to initialize services');
-      throw error;
-    }
-  }
-
-  private initializeWebSocket(): void {
-    this.server = createServer(this.app);
-    this.wss = new WebSocketServer({ server: this.server });
-    this.wsHandler = new WebSocketHandler(this.wss, this.satelliteTracker);
-    
-    logger.info('WebSocket server initialized');
-  }
-
-  private initializeErrorHandling(): void {
-    this.app.use(errorHandler);
-  }
-
-  public async start(): Promise<void> {
-    try {
-      // Connect to databases
-      await connectDatabase();
-      await connectRedis();
-
-      const port = process.env.PORT || 3000;
-      
-      this.server.listen(port, () => {
-        logger.info({
-          port,
-          environment: process.env.NODE_ENV,
-          features: {
-            autonomousOperations: process.env.AUTO_TOKEN_ROTATION === 'true',
-            threatAnalysis: process.env.THREAT_ANALYSIS_ENABLED === 'true',
-            selfHealing: process.env.SELF_HEALING_ENABLED === 'true',
-          }
-        }, 'Satellite tracking server started');
-      });
-
-      // Graceful shutdown handling
-      this.setupGracefulShutdown();
-
-    } catch (error) {
-      logger.error({ error }, 'Failed to start server');
-      process.exit(1);
-    }
-  }
-
-  private setupGracefulShutdown(): void {
-    const gracefulShutdown = async (signal: string) => {
-      logger.info({ signal }, 'Received shutdown signal, starting graceful shutdown');
-      
-      try {
-        // Stop accepting new connections
-        this.server.close(() => {
-          logger.info('HTTP server closed');
-        });
-
-        // Close WebSocket connections
-        this.wss.close(() => {
-          logger.info('WebSocket server closed');
-        });
-
-        // Stop autonomous operations
-        await this.autonomousManager.shutdown();
-
-        logger.info('Graceful shutdown completed');
-        process.exit(0);
-      } catch (error) {
-        logger.error({ error }, 'Error during graceful shutdown');
-        process.exit(1);
-      }
-    };
-
-    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-  }
-}
-
-// Start the server
-if (require.main === module) {
-  const server = new SatelliteTrackingServer();
-  server.start().catch((error) => {
-    logger.error({ error }, 'Failed to start application');
-    process.exit(1);
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    service: 'satellite-tracking-gateway',
+    version: process.env.npm_package_version || '1.0.0',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
   });
-}
+});
 
-export default SatelliteTrackingServer;
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    service: 'Satellite Tracking Gateway',
+    version: '1.0.0',
+    endpoints: {
+      health: '/api/health',
+      satellites: '/api/satellites',
+      predict: '/api/predict',
+      threats: '/api/threats',
+    },
+  });
+});
+
+// Placeholder routes
+app.get('/api/satellites', async (req, res) => {
+  try {
+    // TODO: Implement satellite listing
+    res.json({
+      satellites: [],
+      total: 0,
+      page: 1,
+      limit: 20,
+    });
+  } catch (error) {
+    logger.error('Error fetching satellites:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/predict', async (req, res) => {
+  try {
+    const { satellite_id, start_time, end_time } = req.body;
+    
+    if (!satellite_id || !start_time || !end_time) {
+      return res.status(400).json({ 
+        error: 'Missing required parameters: satellite_id, start_time, end_time' 
+      });
+    }
+    
+    // TODO: Implement orbit prediction
+    res.json({
+      satellite_id,
+      predictions: [],
+      start_time,
+      end_time,
+    });
+  } catch (error) {
+    logger.error('Error predicting orbit:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/threats', async (req, res) => {
+  try {
+    // TODO: Implement threat analysis endpoint
+    res.json({
+      threats: [],
+      analysis_time: new Date().toISOString(),
+      total_satellites_analyzed: 0,
+    });
+  } catch (error) {
+    logger.error('Error fetching threats:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Error handling middleware
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  logger.error('Unhandled error:', err);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal server error',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+  });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not found' });
+});
+
+// Start server
+const server = app.listen(PORT, () => {
+  logger.info(`🚀 Satellite Tracking Gateway running on port ${PORT}`);
+  logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM signal received: closing HTTP server');
+  server.close(() => {
+    logger.info('HTTP server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  logger.info('SIGINT signal received: closing HTTP server');
+  server.close(() => {
+    logger.info('HTTP server closed');
+    process.exit(0);
+  });
+});
+
+export default app;

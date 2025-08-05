@@ -200,47 +200,6 @@
             margin: 0 auto 3rem;
         }
 
-        .cta-buttons {
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        .btn {
-            padding: 0.875rem 2rem;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            border: 1px solid transparent;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .btn-primary {
-            background: var(--accent-primary);
-            color: var(--bg-primary);
-        }
-
-        .btn-primary:hover {
-            background: transparent;
-            color: var(--accent-primary);
-            border-color: var(--accent-primary);
-        }
-
-        .btn-secondary {
-            background: transparent;
-            color: var(--text-primary);
-            border-color: var(--border-primary);
-        }
-
-        .btn-secondary:hover {
-            border-color: var(--accent-primary);
-            color: var(--accent-primary);
-        }
-
         /* Sections */
         .section-title {
             font-size: 2.5rem;
@@ -249,14 +208,14 @@
             text-align: center;
         }
 
-        .about-content {
+        .about-content, .journey-content {
             max-width: 800px;
             margin: 0 auto;
             font-size: 1.1rem;
             line-height: 1.8;
         }
 
-        .about-content p {
+        .about-content p, .journey-content p {
             margin-bottom: 1.5rem;
         }
 
@@ -296,20 +255,14 @@
             margin-bottom: 1.5rem;
         }
 
-        .project-links {
-            display: flex;
-            gap: 1rem;
-        }
-
-        .project-link {
-            color: var(--accent-primary);
-            text-decoration: none;
-            font-weight: 500;
-            transition: color 0.3s ease;
-        }
-
-        .project-link:hover {
-            color: var(--text-primary);
+        .project-status {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            color: var(--text-muted);
         }
 
         /* Bio section */
@@ -395,11 +348,6 @@
                 font-size: 1.2rem;
             }
 
-            .cta-buttons {
-                flex-direction: column;
-                align-items: center;
-            }
-
             .projects-grid {
                 grid-template-columns: 1fr;
             }
@@ -451,8 +399,9 @@
             <a href="#" class="logo">Ruddro Roy</a>
             <div class="nav-links">
                 <a href="#about" class="nav-link active" data-section="about">About</a>
+                <a href="#journey" class="nav-link" data-section="journey">My Journey</a>
+                <a href="#tech" class="nav-link" data-section="tech">Technical Background</a>
                 <a href="#projects" class="nav-link" data-section="projects">Projects</a>
-                <a href="#bio" class="nav-link" data-section="bio">Bio</a>
                 <a href="#contact" class="nav-link" data-section="contact">Contact</a>
                 <button class="theme-toggle" aria-label="Toggle theme">🌙</button>
             </div>
@@ -470,14 +419,6 @@
                     Advancing space situational awareness through autonomous satellite tracking systems, 
                     orbital mechanics modeling, and innovative threat assessment algorithms.
                 </p>
-                <div class="cta-buttons fade-in-up">
-                    <a href="https://starlink.ruddro.com" target="_blank" class="btn btn-primary">
-                        🛰️ Live Tracking Platform
-                    </a>
-                    <a href="https://ruddro.com" target="_blank" class="btn btn-secondary">
-                        🌐 Main Portfolio
-                    </a>
-                </div>
             </div>
         </section>
 
@@ -507,6 +448,151 @@
             </div>
         </section>
 
+        <!-- My Journey Section -->
+        <section id="journey" class="section">
+            <div class="container">
+                <div class="section-content">
+                    <h2 class="section-title">My Journey</h2>
+                    <div class="journey-content">
+                        <p>
+                            I graduated with an Electrical and Electronic Engineering degree from Bangladesh, but honestly, 
+                            my real journey started when I stumbled into NASA's online events. I wasn't planning to fall in 
+                            love with space technology, but there I was, actively participating in Mars missions, moon observation, 
+                            NASA DART, NASA EPDC, and NASA GLOBE citizen science projects from my room in Bangladesh.
+                        </p>
+                        <p>
+                            Here's where things got interesting. While volunteering for NASA GLOBE, I first learned about the 
+                            real-time use of satellites Aqua and Terra. That's when it hit me - I always wanted to work for 
+                            any space agency. I even had this eager dream of attending seminars or webinars in person. But 
+                            reality check: I later realized you can't work or intern at NASA unless you're a US citizen. 
+                            Well, that was disappointing.
+                        </p>
+                        <p>
+                            So there I was, stuck in Bangladesh with limited resources and almost zero opportunities to do 
+                            anything different outside of hardcore academia. What do you do? I focused on self-learning with 
+                            whatever public resources I could find. During this phase, I discovered something about myself - 
+                            I learn way better by listening rather than just reading. Based on this understanding, I started 
+                            teaching on an experimental basis to know myself better.
+                        </p>
+                        <p>
+                            Interestingly, I discovered that I can explain technical stuff in much simpler ways with examples 
+                            from what's actually happening technically. I go very deep with different entangled thoughts that 
+                            often come out as better ideas. Then I work on those ideas, explain them again, and come up with 
+                            even better concepts. I probably could do better in cognitive science related questions because 
+                            when I question things, it follows certain patterns by default.
+                        </p>
+                        <p>
+                            Then I started applying to different universities in many countries - France, Italy, UK, India. 
+                            Successfully got offers from many with partial scholarships or fee waivers. In 2024, I chose 
+                            France and got my visa. But here's where the complex story begins. Due to foreign currency scarcity 
+                            in Bangladesh and bank officers giving me misinformation, I faced several challenges paying for 
+                            accommodation. Even after purchasing air tickets and foreign currency exchange, 7 days before 
+                            departure, I had to cancel everything.
+                        </p>
+                        <p>
+                            Now many people will be saying with raised eyebrows, "What? How many succeeded studying abroad 
+                            while you failed even after getting the visa?" I want to give you just a small hint - there was 
+                            a phase in Bangladesh where even creating a student account for studying abroad was difficult. 
+                            And regarding "many" - so many students process their applications via 3rd party brokers. From 
+                            applying to the university to writing your SOP, they do everything on behalf of you.
+                        </p>
+                        <p>
+                            Here I am, allergic to any broker who does that. This is unfair. My simple logic is: if you can't 
+                            write your Statement of Purpose or Statement of Intent, then in simple words, you don't know 
+                            yourself yet. If you don't know what you want in life, what your goals are, then sorry to say, 
+                            how do you actually continue your study? Because you have to do thesis or internship in your 
+                            last semester or last year of university.
+                        </p>
+                        <p>
+                            The story is very complex, but I want to say that I did predictions based on my entangled thoughts 
+                            that this problem might arise in my career because I was noticing how some banking officials were 
+                            giving misinformation. I calculated every step, and yes, not only that - I've noticed many such 
+                            things even before happening. That's why sometimes I say I could have done better in cognitive 
+                            science related fields.
+                        </p>
+                        <p>
+                            Okay, enough about others. I am still actively working on myself, learning and trying to implement. 
+                            Currently enrolled (September 2025) in MSc program in Communications Engineering at PoliTO as an 
+                            international student, waiting for visa approval. And regarding my current project, it was sparkling 
+                            since I knew about those two satellites Aqua and Terra. Now it's time for building cool stuff.
+                        </p>
+                        <p>
+                            No one can ignore technology, even if they want to. That's why my philosophy is to create an 
+                            autonomous utopian future. However, the current hype is AI, but if you think AI means only chatbots 
+                            or writing tools, then you are again mistaken. There's so much more to explore and build.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Technical Background Section -->
+        <section id="tech" class="section">
+            <div class="container">
+                <div class="section-content">
+                    <h2 class="section-title">Technical Background</h2>
+                    <div class="bio-content">
+                        <div class="bio-item">
+                            <h3>What I'm Actually Building</h3>
+                            <p>
+                                Space situational awareness systems that don't just track satellites but predict where things 
+                                might go wrong. I'm talking autonomous satellite tracking, orbital mechanics modeling that 
+                                actually works in real-time, and threat assessment algorithms that can tell you if two objects 
+                                might have a bad day in space. Plus real-time 3D visualization because why just have data 
+                                when you can see it happening?
+                            </p>
+                        </div>
+
+                        <div class="bio-item">
+                            <h3>My Technical Arsenal</h3>
+                            <p>
+                                <strong>Languages I Think In:</strong> TypeScript, Python, Rust, Go<br>
+                                <strong>Frameworks I Live With:</strong> React, Node.js, Flask, FastAPI<br>
+                                <strong>Orbital Mechanics Tools:</strong> Skyfield, SGP4, Astropy, GMAT<br>
+                                <strong>Making Things Visual:</strong> CesiumJS, Three.js, WebGL<br>
+                                <strong>Infrastructure That Actually Works:</strong> Docker, Kubernetes, MongoDB, Redis
+                            </p>
+                            <p>
+                                But honestly, tools are just tools. What matters is understanding how satellites actually 
+                                move, how to predict their paths, and how to build systems that don't break when you're 
+                                tracking 20,000+ objects simultaneously.
+                            </p>
+                        </div>
+
+                        <div class="bio-item">
+                            <h3>Current Research & Development</h3>
+                            <p>
+                                I'm developing next-generation autonomous satellite tracking systems with sub-kilometer accuracy. 
+                                Not because it sounds cool, but because current systems often miss critical details. I'm also 
+                                investigating machine learning approaches for conjunction prediction - basically teaching computers 
+                                to predict when satellites might crash into each other before it happens.
+                            </p>
+                            <p>
+                                Plus, I'm creating open-source tools for space situational awareness because this stuff shouldn't 
+                                be locked behind corporate walls. Space affects everyone, so the tools to understand it should 
+                                be accessible to everyone.
+                            </p>
+                        </div>
+
+                        <div class="bio-item">
+                            <h3>Why This Actually Matters</h3>
+                            <p>
+                                I'm building accessible tools for space safety research, contributing to open-source astronomical 
+                                software, and advancing automated threat detection for space traffic management. Think of it as 
+                                building the air traffic control system for space - except space is much bigger, objects move 
+                                much faster, and there's no room for error.
+                            </p>
+                            <p>
+                                The goal isn't just to track things, but to make space safer for future missions, whether 
+                                they're scientific research, commercial ventures, or human exploration. Because honestly, 
+                                we're going to need clean orbital highways if we want to keep exploring.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- Projects Section -->
         <section id="projects" class="section">
             <div class="container">
@@ -519,10 +605,7 @@
                                 Real-time tracking system for 20,000+ satellites with autonomous threat assessment, 
                                 precise orbital mechanics using Skyfield/SGP4, and cloud-native microservices architecture.
                             </p>
-                            <div class="project-links">
-                                <a href="https://starlink.ruddro.com" target="_blank" class="project-link">Live Demo →</a>
-                                <a href="https://github.com/ruddro-roy/satellite-tracking-platform" target="_blank" class="project-link">Source Code →</a>
-                            </div>
+                            <div class="project-status">In Development</div>
                         </div>
 
                         <div class="project-card">
@@ -531,10 +614,7 @@
                                 Python-based microservice providing high-precision orbital calculations, pass predictions, 
                                 and conjunction analysis using advanced astronomical algorithms and distributed caching.
                             </p>
-                            <div class="project-links">
-                                <a href="#" class="project-link">Documentation →</a>
-                                <a href="#" class="project-link">API Reference →</a>
-                            </div>
+                            <div class="project-status">Active Development</div>
                         </div>
 
                         <div class="project-card">
@@ -543,10 +623,7 @@
                                 Self-healing data acquisition system with intelligent token rotation, adaptive rate limiting, 
                                 and automatic failover capabilities for continuous satellite tracking operations.
                             </p>
-                            <div class="project-links">
-                                <a href="#" class="project-link">Technical Details →</a>
-                                <a href="#" class="project-link">Architecture →</a>
-                            </div>
+                            <div class="project-status">Testing Phase</div>
                         </div>
 
                         <div class="project-card">
@@ -555,56 +632,7 @@
                                 Machine learning models for predicting satellite conjunctions, debris collision risks, 
                                 and space weather impacts on orbital mechanics with probabilistic risk scoring.
                             </p>
-                            <div class="project-links">
-                                <a href="#" class="project-link">Research Paper →</a>
-                                <a href="#" class="project-link">Model Performance →</a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Bio Section -->
-        <section id="bio" class="section">
-            <div class="container">
-                <div class="section-content">
-                    <h2 class="section-title">Bio</h2>
-                    <div class="bio-content">
-                        <div class="bio-item">
-                            <h3>Research Focus</h3>
-                            <p>
-                                Space situational awareness, autonomous satellite tracking, orbital mechanics modeling, 
-                                threat assessment algorithms, and real-time space object visualization systems.
-                            </p>
-                        </div>
-
-                        <div class="bio-item">
-                            <h3>Technical Expertise</h3>
-                            <p>
-                                <strong>Languages:</strong> TypeScript, Python, Rust, Go<br>
-                                <strong>Frameworks:</strong> React, Node.js, Flask, FastAPI<br>
-                                <strong>Orbital Mechanics:</strong> Skyfield, SGP4, Astropy, GMAT<br>
-                                <strong>Visualization:</strong> CesiumJS, Three.js, WebGL<br>
-                                <strong>Infrastructure:</strong> Docker, Kubernetes, MongoDB, Redis
-                            </p>
-                        </div>
-
-                        <div class="bio-item">
-                            <h3>Current Research</h3>
-                            <p>
-                                Developing next-generation autonomous satellite tracking systems with 
-                                sub-kilometer accuracy, investigating machine learning approaches for 
-                                conjunction prediction, and creating open-source tools for space situational awareness.
-                            </p>
-                        </div>
-
-                        <div class="bio-item">
-                            <h3>Impact & Contributions</h3>
-                            <p>
-                                Building accessible tools for space safety research, contributing to open-source 
-                                astronomical software, and advancing automated threat detection for space traffic management.
-                            </p>
+                            <div class="project-status">Research Phase</div>
                         </div>
                     </div>
                 </div>
@@ -623,8 +651,8 @@
                         </div>
 
                         <div class="contact-item">
-                            <h3>Portfolio</h3>
-                            <a href="https://ruddro.com" target="_blank">ruddro.com</a>
+                            <h3>X (Twitter)</h3>
+                            <a href="https://x.com/royrdro" target="_blank">@royrdro</a>
                         </div>
                     </div>
                 </div>

@@ -1,0 +1,137 @@
+services:
+  # === Gateway Service (Node.js/TypeScript API) ===
+  - type: web
+    name: satellite-tracking-gateway
+    runtime: node
+    buildCommand: cd backend && npm install && npm run build
+    startCommand: cd backend && npm start
+    plan: standard
+    region: oregon
+    branch: main
+    rootDir: .
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: ORBIT_SERVICE_URL
+        fromService:
+          type: web
+          name: satellite-orbit-service
+          property: host
+      - key: MONGODB_URI
+        fromDatabase:
+          name: satellite-mongodb
+          property: connectionString
+      - key: REDIS_URL
+        fromDatabase:
+          name: satellite-redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 24h
+      - key: AUTO_TOKEN_ROTATION
+        value: true
+      - key: SELF_HEALING_ENABLED
+        value: true
+      - key: THREAT_ANALYSIS_ENABLED
+        value: true
+      - key: MAX_SATELLITES_RENDER
+        value: 20000
+      - key: UPDATE_INTERVAL_MS
+        value: 30000
+      - key: CELESTRAK_API_BASE
+        value: https://celestrak.org
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: 100
+      - key: LOG_LEVEL
+        value: info
+    healthCheckPath: /api/health
+    autoDeploy: true
+
+  # === Orbit Microservice (Python/Flask) ===
+  - type: web
+    name: satellite-orbit-service
+    runtime: python
+    buildCommand: cd orbit-service && pip install -r requirements.txt
+    startCommand: cd orbit-service && gunicorn --bind 0.0.0.0:$PORT app:app
+    plan: standard
+    region: oregon
+    branch: main
+    rootDir: .
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: REDIS_URL
+        fromDatabase:
+          name: satellite-redis
+          property: connectionString
+      - key: CELESTRAK_API_BASE
+        value: https://celestrak.org
+      - key: LOG_LEVEL
+        value: info
+    healthCheckPath: /health
+    autoDeploy: true
+
+  # === Frontend (React/CesiumJS) ===
+  - type: web
+    name: satellite-tracking-frontend
+    runtime: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/build
+    plan: starter
+    region: oregon
+    branch: main
+    rootDir: .
+    envVars:
+      - key: REACT_APP_API_URL
+        fromService:
+          type: web
+          name: satellite-tracking-gateway
+          property: host
+      - key: REACT_APP_CESIUM_BASE_URL
+        fromService:
+          type: web
+          name: satellite-tracking-gateway
+          property: host
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    autoDeploy: true
+
+  # === Static Portfolio Site ===
+  - type: web
+    name: satellite-portfolio-site
+    runtime: static
+    buildCommand: echo "Static site - no build required"
+    staticPublishPath: static-site
+    plan: starter
+    region: oregon
+    branch: main
+    rootDir: .
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    autoDeploy: true
+
+# === Databases ===
+databases:
+  # === MongoDB for persistent data ===
+  - name: satellite-mongodb
+    databaseName: satellite_tracking
+    user: satellite_user
+    plan: standard
+    region: oregon
+    ipAllowList: []
+
+  # === Redis for caching and real-time data ===
+  - name: satellite-redis
+    plan: standard
+    region: oregon
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []

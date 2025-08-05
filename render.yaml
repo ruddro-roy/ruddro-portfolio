@@ -17,10 +17,7 @@ services:
           name: satellite-db
           property: connectionString
       - key: REDIS_URL
-        fromService:
-          type: redis
-          name: satellite-cache
-          property: connectionString
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: CESIUM_ION_TOKEN
@@ -68,10 +65,7 @@ services:
       - key: FLASK_ENV
         value: production
       - key: REDIS_URL
-        fromService:
-          type: redis
-          name: satellite-cache
-          property: connectionString
+        sync: false
       - key: CELESTRAK_API_BASE
         value: https://celestrak.org
       - key: AUTO_TOKEN_ROTATION
@@ -161,10 +155,7 @@ services:
       - key: FLASK_ENV
         value: production
       - key: REDIS_URL
-        fromService:
-          type: redis
-          name: satellite-cache
-          property: connectionString
+        sync: false
       - key: CELESTRAK_API_BASE
         value: https://celestrak.org
       - key: WORKER_TYPE
@@ -185,10 +176,9 @@ services:
       - key: FLASK_ENV
         value: production
       - key: REDIS_URL
-        fromService:
-          type: redis
-          name: satellite-cache
-          property: connectionString
+        sync: false
+      - key: CELESTRAK_API_BASE
+        value: https://celestrak.org
       - key: WORKER_TYPE
         value: threat_analyzer
       - key: THREAT_ANALYSIS_ENABLED
@@ -208,10 +198,7 @@ services:
       - key: FLASK_ENV
         value: production
       - key: REDIS_URL
-        fromService:
-          type: redis
-          name: satellite-cache
-          property: connectionString
+        sync: false
       - key: CELESTRAK_API_BASE
         value: https://celestrak.org
     buildFilter:
@@ -229,17 +216,14 @@ services:
       - key: FLASK_ENV
         value: production
       - key: REDIS_URL
-        fromService:
-          type: redis
-          name: satellite-cache
-          property: connectionString
+        sync: false
       - key: THREAT_ANALYSIS_ENABLED
         value: true
     buildFilter:
       paths:
         - orbit-service/**
 
-# Databases and Infrastructure
+# Databases
 databases:
   - name: satellite-db
     databaseName: satellite_tracker
@@ -247,8 +231,18 @@ databases:
     plan: standard
     region: oregon
 
-  - type: redis
-    name: satellite-cache
-    plan: standard
-    region: oregon
-    maxmemoryPolicy: allkeys-lru
+# Note: Redis Configuration
+# Render doesn't support Redis in the databases section.
+# You have two options for Redis:
+# 
+# Option 1: Use Render's Redis service (separate from Blueprint)
+# - Create a Redis instance manually in Render dashboard
+# - Get the connection URL and set REDIS_URL in environment variables
+#
+# Option 2: Use an external Redis provider
+# - Sign up for Redis Cloud (free tier available), Upstash, or similar
+# - Get the connection URL and set REDIS_URL in environment variables
+#
+# Recommended: Redis Cloud (redis.com) offers a free 30MB instance
+# After getting your Redis URL, set it in each service's environment 
+# variables in the Render dashboard.

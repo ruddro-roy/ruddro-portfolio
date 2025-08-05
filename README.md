@@ -148,5 +148,3 @@ This platform handles real-time satellite tracking data. All API keys and sensit
 ---
 
 **Building the future of space situational awareness through open collaboration.**
-
-*Active URLs: [ruddro.com](https://ruddro.com) | [starlink.ruddro.com](https://starlink.ruddro.com)*

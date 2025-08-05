@@ -105,7 +105,14 @@ services:
         value: nosniff
       - path: /*
         name: Content-Security-Policy
-        value: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cesium.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cesium.com; img-src 'self' data: https: blob:; connect-src 'self' https://api.cesium.com https://assets.ion.cesium.com wss: ws:; worker-src 'self' blob:; font-src 'self' https:;
+        value: >
+          default-src 'self';
+          script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cesium.com https://cdn.jsdelivr.net;
+          style-src 'self' 'unsafe-inline' https://cesium.com;
+          img-src 'self' data: https: blob:;
+          connect-src 'self' https://api.cesium.com https://assets.ion.cesium.com wss: ws:;
+          worker-src 'self' blob:;
+          font-src 'self' https:;
     routes:
       - type: redirect
         source: /*

@@ -1,389 +1,222 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Ruddro Roy - Advancing space situational awareness through innovative satellite tracking and autonomous systems.">
-    <meta name="keywords" content="Ruddro Roy, portfolio, satellite tracking, space technology, orbital mechanics, autonomous systems, machine learning">
-    <meta name="author" content="Ruddro Roy">
-    
-    <title>Ruddro Roy</title>
-    
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  <meta charset="utf-8" />
+  <title>Ruddro Roy — Systems for Space & Networks</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="description" content="Ruddro Roy builds operator-grade tools for satellite passes, link margins, and network QoS. Clean math, reproducible outputs, honest methods." />
+  <meta name="author" content="Ruddro Roy" />
+  <meta name="color-scheme" content="light dark" />
+  <meta property="og:title" content="Ruddro Roy — Systems for Space & Networks" />
+  <meta property="og:description" content="Operator-grade tools for satellite passes, link margins, and network QoS. Clean math, reproducible outputs, honest methods." />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
 
-    <style>
-        /* CSS Reset and Basic Setup */
-        :root {
-            --bg-dark: #121212;
-            --text-primary-dark: #e0e0e0;
-            --text-secondary-dark: #a0a0a0;
-            --accent-dark: #00dd99;
-            --border-dark: #333;
-
-            --bg-light: #f5f5f5;
-            --text-primary-light: #121212;
-            --text-secondary-light: #555;
-            --accent-light: #008a62;
-            --border-light: #ddd;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        html {
-            scroll-behavior: smooth;
-        }
-
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-dark);
-            color: var(--text-primary-dark);
-            line-height: 1.7;
-            font-size: 16px;
-            transition: background-color 0.3s, color 0.3s;
-        }
-
-        /* Light Mode */
-        body.light-mode {
-            --bg-dark: var(--bg-light);
-            --text-primary-dark: var(--text-primary-light);
-            --text-secondary-dark: var(--text-secondary-light);
-            --accent-dark: var(--accent-light);
-            --border-dark: var(--border-light);
-        }
-
-        /* Main Layout Container */
-        .container {
-            max-width: 720px;
-            margin: 0 auto;
-            padding: 2rem 1.5rem;
-        }
-
-        /* Header */
-        .header {
-            text-align: center;
-            margin-bottom: 3rem;
-            padding-bottom: 2rem;
-            border-bottom: 1px solid var(--border-dark);
-        }
-
-        .header-text h1 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-        }
-
-        .header-text p {
-            font-size: 1.1rem;
-            color: var(--text-secondary-dark);
-        }
-
-        /* Navigation */
-        nav {
-            margin-bottom: 3rem;
-            padding-bottom: 2rem;
-            border-bottom: 1px solid var(--border-dark);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 1rem;
-        }
-
-        .nav-links {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 1.5rem;
-        }
-
-        .nav-links a {
-            color: var(--text-secondary-dark);
-            text-decoration: none;
-            font-weight: 500;
-            transition: color 0.2s ease;
-        }
-
-        .nav-links a:hover,
-        .nav-links a.active {
-            color: var(--accent-dark);
-        }
-
-        .theme-toggle {
-            background: none;
-            border: 1px solid var(--border-dark);
-            color: var(--text-secondary-dark);
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 1.2rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s ease;
-        }
-        .theme-toggle:hover {
-            border-color: var(--accent-dark);
-            color: var(--accent-dark);
-        }
-
-        /* Section Styling */
-        .section {
-            padding-top: 2rem;
-            margin-bottom: 3rem;
-        }
-
-        .section h2 {
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin-bottom: 1.5rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid var(--border-dark);
-            color: var(--accent-dark);
-        }
-
-        .section p, .section ul {
-            margin-bottom: 1.5rem;
-            color: var(--text-primary-dark);
-        }
-        
-        .section p a {
-             color: var(--accent-dark);
-             text-decoration: none;
-             font-weight: 500;
-        }
-        .section p a:hover {
-            text-decoration: underline;
-        }
-
-        /* Project & Bio Item Styling */
-        .item {
-            margin-bottom: 2rem;
-            padding: 1.5rem;
-            border: 1px solid var(--border-dark);
-            border-radius: 8px;
-            background-color: rgba(0,0,0,0.1);
-        }
-        
-        .item h3 {
-            font-size: 1.2rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-        }
-
-        .item p {
-            margin-bottom: 0;
-            color: var(--text-secondary-dark);
-        }
-        
-        code {
-            font-family: 'JetBrains Mono', monospace;
-            background-color: rgba(255, 255, 255, 0.1);
-            padding: 0.2em 0.4em;
-            border-radius: 4px;
-            font-size: 0.9em;
-        }
-
-        /* Footer */
-        .footer {
-            text-align: center;
-            padding: 2rem 0;
-            margin-top: 2rem;
-            border-top: 1px solid var(--border-dark);
-            color: var(--text-secondary-dark);
-            font-size: 0.9rem;
-        }
-        
-        /* Mobile Responsiveness */
-        @media (max-width: 600px) {
-            body {
-                font-size: 15px;
-            }
-            .nav-links {
-                gap: 1rem;
-                justify-content: center;
-                width: 100%;
-            }
-            nav {
-                justify-content: center;
-            }
-        }
-    </style>
+  <style>
+    :root{
+      --bg: #0e0f12;
+      --fg: #e8e8ea;
+      --muted:#9aa0a6;
+      --link:#4dd4a8;
+      --accent:#20c997;
+      --card:#15171c;
+      --border:#24262c;
+      --code:#0f1116;
+      --max: 820px;
+    }
+    @media (prefers-color-scheme: light){
+      :root{ --bg:#ffffff; --fg:#101115; --muted:#5e6572; --link:#0a7f5a; --accent:#0aa06f; --card:#fafafa; --border:#e9eaee; --code:#f5f7fb; }
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0}
+    body{
+      font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial;
+      background:var(--bg); color:var(--fg);
+      line-height:1.65; font-size:16px;
+    }
+    a{color:var(--link); text-decoration:none}
+    a:hover{text-decoration:underline}
+    .wrap{max-width:var(--max); margin:0 auto; padding:28px 16px 64px}
+    header{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 0 18px; border-bottom:1px solid var(--border)}
+    .name{font-weight:800; letter-spacing:.2px; font-size:18px}
+    nav a{color:var(--muted); margin-left:14px; font-weight:600}
+    nav a.active, nav a:hover{color:var(--fg)}
+    .hero{padding:22px 0 8px}
+    .t{font-size:32px; font-weight:800; line-height:1.15; margin:6px 0 10px}
+    .sub{color:var(--muted); max-width:64ch}
+    .cta{display:flex; flex-wrap:wrap; gap:10px; margin:14px 0 0}
+    .btn{
+      display:inline-flex; align-items:center; gap:8px; padding:8px 12px;
+      border:1px solid var(--border); border-radius:10px; background:var(--card); color:var(--fg);
+      font-weight:600;
+    }
+    .btn.secondary{background:transparent}
+    section{padding:26px 0; border-bottom:1px solid var(--border)}
+    h2{font-size:18px; font-weight:800; letter-spacing:.2px; margin:0 0 12px}
+    .grid{display:grid; gap:12px}
+    @media (min-width:780px){ .grid.cols-2{grid-template-columns:1fr 1fr} }
+    .card{
+      background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px;
+    }
+    .card h3{margin:0 0 6px; font-size:16px; font-weight:700}
+    .meta{color:var(--muted); font-size:13px; margin-top:6px}
+    .badge{display:inline-block; font:600 12px/1 JetBrains Mono,monospace; padding:3px 7px; border:1px solid var(--border); border-radius:999px; background:var(--code); color:var(--muted); margin-right:6px}
+    code, .mono{font-family:JetBrains Mono,ui-monospace,Menlo,Consolas,monospace; background:var(--code); border:1px solid var(--border); padding:2px 6px; border-radius:7px}
+    .list{margin:6px 0 0; padding-left:18px}
+    .list li{margin:6px 0}
+    footer{padding:18px 0 0; color:var(--muted); font-size:13px}
+    .note{color:var(--muted); font-size:14px}
+    .toggle{border:1px solid var(--border); background:var(--card); color:var(--muted); border-radius:10px; padding:8px 10px; cursor:pointer}
+    .pill{display:inline-flex; gap:6px; align-items:center}
+    .sr{position:absolute; left:-9999px}
+  </style>
 </head>
 <body>
+  <div class="wrap">
+    <header>
+      <div class="pill">
+        <span class="name">Ruddro Roy</span>
+        <span class="badge">Dhaka → Torino</span>
+      </div>
+      <nav aria-label="Primary">
+        <a href="#work" class="active">Work</a>
+        <a href="#projects">Projects</a>
+        <a href="#journey">Journey</a>
+        <a href="#contact">Contact</a>
+        <button id="theme" class="toggle" aria-pressed="false" aria-label="Toggle theme">Theme</button>
+      </nav>
+    </header>
 
-    <div class="container">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-text">
-                <h1>Ruddro Roy</h1>
-                <p>Advancing space situational awareness through autonomous systems.</p>
-            </div>
-        </header>
+    <section class="hero" id="top">
+      <div class="t">Operator-grade tools for <span class="mono">LEO passes</span>, <span class="mono">link margins</span>, and <span class="mono">network QoS</span>.</div>
+      <p class="sub">
+        I build small, sharp systems where outputs are reproducible and methods are public. No black boxes. Frames and epochs are labeled. Claims are testable.
+      </p>
+      <div class="cta">
+        <a class="btn" href="#work">View my work</a>
+        <a class="btn secondary" href="https://github.com/ruddro-roy" target="_blank" rel="noopener">GitHub</a>
+        <a class="btn secondary" href="#contact">Email</a>
+      </div>
+    </section>
 
-        <!-- Navigation -->
-        <nav>
-            <div class="nav-links">
-                <a href="#about" class="nav-link active">About</a>
-                <a href="#journey" class="nav-link">Journey</a>
-                <a href="#tech" class="nav-link">Tech</a>
-                <a href="#projects" class="nav-link">Projects</a>
-                <a href="#contact" class="nav-link">Contact</a>
-            </div>
-            <button class="theme-toggle" aria-label="Toggle theme">🌙</button>
-        </nav>
+    <section id="work" aria-labelledby="work-h">
+      <h2 id="work-h">Work (job-first)</h2>
+      <div class="grid cols-2">
+        <article class="card">
+          <h3>LEO Pass Planner + Link-Margin Timeline</h3>
+          <p>Given a TLE and ground site, compute passes and plot margin vs time using transparent FSPL + ITU gaseous/rain loss. Always shows <span class="badge">frame=TEME</span> and <span class="badge">TLE epoch</span>.</p>
+          <p class="meta">Status: Building | Tech: FastAPI, sgp4, astropy/ERFA, React+Chart.js</p>
+          <ul class="list">
+            <li>API: <span class="mono">/passes</span>, <span class="mono">/margin</span>, <span class="mono">/export/ics</span></li>
+            <li>Accuracy target: rise/max/set within ±2 s vs reference</li>
+            <li>Exports: ICS, CSV, PDF one-pager</li>
+          </ul>
+        </article>
 
-        <!-- Main Content Sections -->
-        <main>
-            <!-- About Section -->
-            <section id="about" class="section">
-                <h2>About</h2>
-                <p>
-                    I develop autonomous systems for satellite tracking and space situational awareness, focusing on real-time orbital mechanics computation and threat assessment algorithms. My work combines advanced astronomical calculations with modern cloud-native architectures to create scalable, precise tracking solutions.
-                </p>
-                <p>
-                    Currently building comprehensive satellite tracking platforms that handle 20,000+ space objects with sub-kilometer accuracy, featuring autonomous data acquisition, conjunction threat analysis, and real-time 3D visualization capabilities.
-                </p>
-                <p>
-                    The goal is to contribute to space safety through improved tracking accuracy, automated threat detection, and accessible visualization tools that can inform future space traffic management systems.
-                </p>
-            </section>
+        <article class="card">
+          <h3>Latency-Under-Load Probe</h3>
+          <p>Measures latency, jitter, loss, and micro-outages at 10/50/80% offered load. Useful for Starlink/any ISP. Reproducible methods; CSV export.</p>
+          <p class="meta">Status: Building | Tech: Python agent + FastAPI + React dashboard</p>
+          <ul class="list">
+            <li>Stages: idle → 10% → 50% → 80% uplink</li>
+            <li>Detections: micro-outages ≥1 s; availability%</li>
+            <li>Outputs: charts + raw CSV</li>
+          </ul>
+        </article>
+      </div>
+      <p class="note">Both projects are engineered to be demoable and testable locally, then deployed. No client-side secrets; tokens live server-side.</p>
+    </section>
 
-            <!-- My Journey Section -->
-            <section id="journey" class="section">
-                <h2>My Journey</h2>
-                <p>
-                    I graduated with an Electrical and Electronic Engineering degree from Bangladesh, but honestly, my real journey started when I stumbled into NASA's online events. I wasn't planning to fall in love with space technology, but there I was, actively participating in Mars missions, moon observation, and NASA GLOBE citizen science projects from my room. While volunteering for NASA GLOBE, I first learned about the real-time use of satellites Aqua and Terra. That's when it hit me. I always wanted to work for a space agency.
-                </p>
-                <p>
-                    So there I was, stuck in Bangladesh with limited resources. I focused on self-learning with whatever public resources I could find. During this phase, I discovered I learn way better by listening than just reading. Based on this, I started teaching experimentally to know myself better. Interestingly, I discovered that I can explain technical stuff in much simpler ways. I go very deep with different entangled thoughts that often come out as better ideas.
-                </p>
-                <p>
-                    I am still actively working on myself, learning and trying to implement. Currently enrolled (September 2025) in an MSc program in Communications Engineering at PoliTO as an international student, waiting for visa approval. And regarding my current project, it was sparkling since I knew about those two satellites Aqua and Terra. Now it's time for building cool stuff.
-                </p>
-                <p>
-                    No one can ignore technology, even if they want to. That's why my philosophy is to create an autonomous utopian future. The current hype is AI, but if you think AI means only chatbots or writing tools, then you are mistaken. There's so much more to explore and build.
-                </p>
-            </section>
+    <section id="projects" aria-labelledby="proj-h">
+      <h2 id="proj-h">Previous & ongoing</h2>
+      <div class="grid">
+        <article class="card">
+          <h3>Starlink Tracker (4k satellites)</h3>
+          <p>Interactive Cesium viewer: click to track, dropdown search, “what’s overhead” using device location. Learned the hard parts: batching SGP4, primitives over entities, and ruthless UI simplification.</p>
+          <p class="meta">Takeaway: performance & UX > catalog size. Claims must be reproducible.</p>
+        </article>
 
-            <!-- Technical Background Section -->
-            <section id="tech" class="section">
-                <h2>Technical Background</h2>
-                <div class="item">
-                    <h3>What I'm Building</h3>
-                    <p>
-                        Space situational awareness systems that don't just track satellites but predict where things might go wrong. I'm talking autonomous satellite tracking, real-time orbital mechanics modeling, and threat assessment algorithms. Plus real-time 3D visualization because why just have data when you can see it?
-                    </p>
-                </div>
-                <div class="item">
-                    <h3>My Technical Arsenal</h3>
-                    <p>
-                        <strong>Languages:</strong> TypeScript, Python, Rust, Go<br>
-                        <strong>Frameworks:</strong> React, Node.js, Flask, FastAPI<br>
-                        <strong>Orbital Mechanics:</strong> Skyfield, SGP4, Astropy, GMAT<br>
-                        <strong>Visualization:</strong> CesiumJS, Three.js, WebGL<br>
-                        <strong>Infrastructure:</strong> Docker, Kubernetes, MongoDB, Redis
-                    </p>
-                </div>
-                <div class="item">
-                    <h3>Why This Matters</h3>
-                    <p>
-                        I'm building accessible tools for space safety research and advancing automated threat detection for space traffic management. Think of it as building the air traffic control system for space, except space is much bigger, objects move much faster, and there's no room for error.
-                    </p>
-                </div>
-            </section>
+        <article class="card">
+          <h3>Methods Notes (short, numerical)</h3>
+          <p>Plain-English writeups as I build:</p>
+          <ul class="list">
+            <li>Frames & Time in SGP4 (TEME → GCRS → ITRF)</li>
+            <li>FSPL + ITU-R gaseous/rain loss (with presets)</li>
+            <li>Latency under load: defining micro-outages</li>
+          </ul>
+        </article>
+      </div>
+    </section>
 
-            <!-- Projects Section -->
-            <section id="projects" class="section">
-                <h2>Projects</h2>
-                <div class="item">
-                    <h3>Satellite Tracking Platform</h3>
-                    <p>Real-time tracking for 20,000+ satellites with autonomous threat assessment, precise orbital mechanics, and cloud-native microservices. (In Development)</p>
-                </div>
-                <div class="item">
-                    <h3>Orbital Mechanics Engine</h3>
-                    <p>Python microservice for high-precision orbital calculations, pass predictions, and conjunction analysis. (Active Development)</p>
-                </div>
-                <div class="item">
-                    <h3>Autonomous Data Pipeline</h3>
-                    <p>Self-healing data acquisition system with intelligent token rotation and adaptive rate limiting for continuous tracking operations. (Testing Phase)</p>
-                </div>
-            </section>
+    <section id="journey" aria-labelledby="journey-h">
+      <h2 id="journey-h">Journey</h2>
+      <div class="grid">
+        <article class="card">
+          <p>
+            EEE graduate from Bangladesh. Discovered space systems through NASA online events and GLOBE projects (Aqua/Terra sparked the trail). Self-taught with public resources; I learn by building and explaining. 
+            Admitted to MSc in Communications Engineering (Politecnico di Torino, 2025/26) — currently preparing and building tools I wish existed: transparent, reproducible, and useful to operators and students.
+          </p>
+        </article>
+      </div>
+    </section>
 
-            <!-- Contact Section -->
-            <section id="contact" class="section">
-                <h2>Contact</h2>
-                <p>You can find me on these platforms:</p>
-                <ul>
-                    <li><a href="https://github.com/ruddro-roy" target="_blank" rel="noopener noreferrer">GitHub</a></li>
-                    <li><a href="https://x.com/royrdro" target="_blank" rel="noopener noreferrer">X (formerly Twitter)</a></li>
-                </ul>
-            </section>
-        </main>
+    <section id="contact" aria-labelledby="contact-h">
+      <h2 id="contact-h">Contact</h2>
+      <div class="grid cols-2">
+        <div class="card">
+          <h3>Links</h3>
+          <ul class="list">
+            <li><a href="https://github.com/ruddro-roy" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://x.com/royrdro" target="_blank" rel="noopener">X (Twitter)</a></li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Email</h3>
+          <p><a href="mailto:royruddro28@gmail.com">royruddro28@gmail.com</a></p>
+          <p class="meta">Prefer concise, reproducible requests. I respond with methods and numbers.</p>
+        </div>
+      </div>
+    </section>
 
-        <!-- Footer -->
-        <footer class="footer">
-            <p>&copy; 2025 Ruddro Roy. Building the future of space situational awareness.</p>
-        </footer>
-    </div>
+    <footer>
+      <p class="note">© <span id="y"></span> Ruddro Roy — Clean architecture, honest math, smooth UX.</p>
+    </footer>
+  </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const themeToggle = document.querySelector('.theme-toggle');
-            const body = document.body;
-            const navLinks = document.querySelectorAll('.nav-link');
-            const sections = document.querySelectorAll('.section');
+  <script>
+    // year
+    document.getElementById('y').textContent = new Date().getFullYear();
 
-            // --- Theme Toggle Functionality ---
-            // Check for saved theme preference or default to dark mode
-            const savedTheme = localStorage.getItem('theme') || 'dark';
-            if (savedTheme === 'light') {
-                body.classList.add('light-mode');
-                themeToggle.textContent = '☀️';
-            } else {
-                themeToggle.textContent = '🌙';
-            }
+    // simple theme toggle (respects system; stores choice)
+    const btn = document.getElementById('theme');
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    let user = localStorage.getItem('theme'); // "light" | "dark" | null
 
-            themeToggle.addEventListener('click', () => {
-                body.classList.toggle('light-mode');
-                const isLight = body.classList.contains('light-mode');
-                themeToggle.textContent = isLight ? '☀️' : '🌙';
-                localStorage.setItem('theme', isLight ? 'light' : 'dark');
-            });
+    function setTheme(mode){
+      document.documentElement.style.colorScheme = mode;
+      btn.setAttribute('aria-pressed', mode === 'dark');
+    }
+    setTheme(user || (prefersDark ? 'dark' : 'light'));
 
-            // --- Active Nav Link on Scroll ---
-            const observerOptions = {
-                root: null,
-                rootMargin: '0px',
-                threshold: 0.3 // 30% of the section must be visible
-            };
+    btn.addEventListener('click', () => {
+      const current = getComputedStyle(document.documentElement).colorScheme;
+      const next = current === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('theme', next);
+      setTheme(next);
+    });
 
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        // Remove active class from all links
-                        navLinks.forEach(link => link.classList.remove('active'));
-                        
-                        // Add active class to the corresponding link
-                        const id = entry.target.getAttribute('id');
-                        const activeLink = document.querySelector(`.nav-link[href="#${id}"]`);
-                        if (activeLink) {
-                            activeLink.classList.add('active');
-                        }
-                    }
-                });
-            }, observerOptions);
-
-            // Observe all sections
-            sections.forEach(section => {
-                observer.observe(section);
-            });
-        });
-    </script>
+    // anchor active state
+    const links = [...document.querySelectorAll('nav a[href^="#"]')];
+    const obs = new IntersectionObserver((entries)=>{
+      entries.forEach(e=>{
+        const id = e.target.id;
+        const a = links.find(l => l.getAttribute('href') === `#${id}`);
+        if(a){ a.classList.toggle('active', e.isIntersecting); }
+      });
+    }, {root:null, threshold:0.4});
+    document.querySelectorAll('section[id]').forEach(s => obs.observe(s));
+  </script>
 </body>
 </html>
